@@ -8,20 +8,21 @@
       "id": "CLX-000",
       "title": "Repository assessment and implementation plan",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [],
       "acceptance_criteria": [
         "Existing repository structure is inspected.",
         "Existing stack and constraints are documented.",
         "docs/IMPLEMENTATION_PLAN.md exists.",
         "Implementation phases are mapped to actual files/modules."
-      ]
+      ],
+      "notes": "docs/IMPLEMENTATION_PLAN.md created. PRD/SRS/ARCHITECTURE.md missing from repo; CLAUDE.md used as authority."
     },
     {
       "id": "CLX-001",
       "title": "Bootstrap runnable application",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-000"
       ],
@@ -31,13 +32,14 @@
         "Database connection is configured.",
         "Health endpoint works.",
         "Environment variables are documented."
-      ]
+      ],
+      "notes": "FastAPI /api/v1/health + Next.js 16 shell. SQLite fallback when DATABASE_URL unset (Docker daemon not running locally)."
     },
     {
       "id": "CLX-002",
       "title": "Database migrations and domain models",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-001"
       ],
@@ -45,13 +47,14 @@
         "Core tables are implemented.",
         "Alembic migration runs successfully.",
         "Models and schemas are typed."
-      ]
+      ],
+      "notes": "All DATABASE.md tables + additive columns. Alembic 0001 upgrade/downgrade verified on SQLite; Postgres DDL (UUID/JSONB/TIMESTAMPTZ) verified offline."
     },
     {
       "id": "CLX-003",
       "title": "Secure document upload and storage abstraction",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-002"
       ],
@@ -60,13 +63,14 @@
         "File size/type are validated.",
         "Storage is private.",
         "Document metadata is persisted."
-      ]
+      ],
+      "notes": "Magic-byte sniffing, size limit, filename sanitization, private local storage, audited original access."
     },
     {
       "id": "CLX-004",
       "title": "Page-aware PDF/text/OCR processing",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-003"
       ],
@@ -75,7 +79,8 @@
         "Scanned/image documents have an OCR adapter.",
         "Page references are preserved.",
         "Processing errors are represented explicitly."
-      ]
+      ],
+      "notes": "pypdf page-aware extraction, OCR adapter (Tesseract if installed else explicit OCR_UNAVAILABLE), deterministic text-quality flags."
     },
     {
       "id": "CLX-005",
@@ -219,6 +224,17 @@
         "Metrics are shown.",
         "Clean-start demo instructions work."
       ]
+    },
+    {
+      "id": "CLX-014",
+      "title": "Add missing PRD/SRS/ARCHITECTURE docs",
+      "priority": "P2",
+      "status": "blocked",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "docs/PRD.md, docs/SRS.md, docs/ARCHITECTURE.md present and reconciled with IMPLEMENTATION_PLAN.md"
+      ],
+      "notes": "Referenced by CLAUDE.md but not present in the repository. Needs the source documents from the team."
     }
   ]
 }

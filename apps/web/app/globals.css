@@ -1,26 +1,104 @@
 @import "tailwindcss";
 
+/*
+ * CARELYNX design tokens.
+ * Calm, legible, non-authoritative. Status colours carry meaning and are never decorative.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0b1020;
+  --bg-elev: #121a2e;
+  --bg-elev-2: #18223a;
+  --border: #25314d;
+  --fg: #e7ecf5;
+  --fg-muted: #9aa6bf;
+  --accent: #5eead4;
+  --accent-2: #818cf8;
+
+  --verified: #34d399;
+  --verified-bg: rgba(52, 211, 153, 0.12);
+  --review: #fbbf24;
+  --review-bg: rgba(251, 191, 36, 0.12);
+  --human: #fb7185;
+  --human-bg: rgba(251, 113, 133, 0.12);
+  --conflict: #f472b6;
+  --conflict-bg: rgba(244, 114, 182, 0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-elev-2: var(--bg-elev-2);
+  --color-line: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-verified: var(--verified);
+  --color-review: var(--review);
+  --color-human: var(--human);
+  --color-conflict: var(--conflict);
+  --font-sans: var(--font-inter), var(--font-deva), var(--font-guj), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, rgba(94, 234, 212, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(129, 140, 248, 0.1), transparent 60%);
+  background-attachment: fixed;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(24, 34, 58, 0.85), rgba(18, 26, 46, 0.85));
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.fade-in {
+  animation: fadeIn 0.35s ease-out both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pulse-dot {
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .pulse-dot {
+    animation: none;
+  }
 }

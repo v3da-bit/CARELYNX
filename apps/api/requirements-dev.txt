@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest==9.1.1
+ruff==0.16.10
+mypy==2.4.0
+reportlab==5.0.1
