@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models import Fact, ReviewCase
 from app.models.enums import FactStatus, ReviewStatus
 from app.schemas.document import CaseCounts, CaseCreated, CaseOut, DocumentOut
+from app.schemas.fact import FactResponse
 from app.services import documents as doc_service
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -54,3 +55,17 @@ def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
         documents=[DocumentOut.model_validate(d) for d in case.documents],
         counts=case_counts(db, case.id),
     )
+
+@router.get("/{case_id}/facts", response_model=list[FactResponse])
+def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[FactResponse]:
+    case = doc_service.get_case(db, case_id)
+    return db.scalars(
+        select(Fact).where(Fact.case_id == case_id)
+    ).all()
+
+@router.post("/{case_id}/translate")
+async def translate_case(case_id: uuid.UUID, target_lang: str, db: Session = Depends(get_db)) -> Any:
+    case = doc_service.get_case(db, case_id)
+    from app.services.translation import translate_facts
+    result = await translate_facts(db, str(case_id), target_lang)
+    return result

@@ -9,7 +9,7 @@ def get_inference_provider() -> InferenceProvider:
     if provider_name == "rule_based":
         return RuleBasedProvider()
     elif provider_name == "openai_compatible":
-        # Placeholder for OpenAI-compatible provider
-        raise NotImplementedError("OpenAICompatibleProvider not yet implemented")
+        from app.ai.openai_compatible import OpenAICompatibleProvider
+        return OpenAICompatibleProvider()
     else:
         raise ValueError(f"Unknown INFERENCE_PROVIDER: {provider_name}")

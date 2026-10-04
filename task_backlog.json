@@ -131,7 +131,7 @@
       "id": "CLX-008",
       "title": "Patient care plan UI",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-006",
         "CLX-007"
@@ -147,7 +147,7 @@
       "id": "CLX-009",
       "title": "Human review workflow",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-007"
       ],
@@ -162,7 +162,7 @@
       "id": "CLX-010",
       "title": "English/Hindi/Gujarati translation",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-008"
       ],
@@ -176,7 +176,7 @@
       "id": "CLX-011",
       "title": "AMD inference integration",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-005"
       ],
@@ -190,7 +190,7 @@
       "id": "CLX-012",
       "title": "Evaluation benchmark",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-007",
         "CLX-009"
@@ -208,7 +208,7 @@
       "id": "CLX-013",
       "title": "Hackathon demo hardening",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-008",
         "CLX-009",
