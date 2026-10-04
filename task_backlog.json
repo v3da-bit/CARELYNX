@@ -1,0 +1,224 @@
+{
+  "project": "CARELYNX",
+  "version": "2.0.0",
+  "agent_mode": "autonomous_engineer",
+  "rule": "Execute highest-priority unblocked task, validate it, update state, then continue.",
+  "tasks": [
+    {
+      "id": "CLX-000",
+      "title": "Repository assessment and implementation plan",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Existing repository structure is inspected.",
+        "Existing stack and constraints are documented.",
+        "docs/IMPLEMENTATION_PLAN.md exists.",
+        "Implementation phases are mapped to actual files/modules."
+      ]
+    },
+    {
+      "id": "CLX-001",
+      "title": "Bootstrap runnable application",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-000"
+      ],
+      "acceptance_criteria": [
+        "Web app starts.",
+        "FastAPI starts.",
+        "Database connection is configured.",
+        "Health endpoint works.",
+        "Environment variables are documented."
+      ]
+    },
+    {
+      "id": "CLX-002",
+      "title": "Database migrations and domain models",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-001"
+      ],
+      "acceptance_criteria": [
+        "Core tables are implemented.",
+        "Alembic migration runs successfully.",
+        "Models and schemas are typed."
+      ]
+    },
+    {
+      "id": "CLX-003",
+      "title": "Secure document upload and storage abstraction",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-002"
+      ],
+      "acceptance_criteria": [
+        "PDF/JPG/PNG upload works.",
+        "File size/type are validated.",
+        "Storage is private.",
+        "Document metadata is persisted."
+      ]
+    },
+    {
+      "id": "CLX-004",
+      "title": "Page-aware PDF/text/OCR processing",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-003"
+      ],
+      "acceptance_criteria": [
+        "Text PDFs are processed.",
+        "Scanned/image documents have an OCR adapter.",
+        "Page references are preserved.",
+        "Processing errors are represented explicitly."
+      ]
+    },
+    {
+      "id": "CLX-005",
+      "title": "Structured extraction service",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-004"
+      ],
+      "acceptance_criteria": [
+        "Inference provider interface exists.",
+        "Structured fact schema exists.",
+        "Model output is validated.",
+        "Facts cannot be persisted without source metadata."
+      ]
+    },
+    {
+      "id": "CLX-006",
+      "title": "Evidence engine",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-005"
+      ],
+      "acceptance_criteria": [
+        "Facts link to source pages/snippets.",
+        "Missing evidence causes rejection/review.",
+        "Evidence can be displayed by the frontend."
+      ]
+    },
+    {
+      "id": "CLX-007",
+      "title": "Safety and conflict engine",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-005",
+        "CLX-006"
+      ],
+      "acceptance_criteria": [
+        "Low-confidence fields are flagged.",
+        "Conflicting facts are detected.",
+        "Unsupported patient-specific claims are blocked.",
+        "Safety tests exist."
+      ]
+    },
+    {
+      "id": "CLX-008",
+      "title": "Patient care plan UI",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-006",
+        "CLX-007"
+      ],
+      "acceptance_criteria": [
+        "Timeline renders.",
+        "Documented instructions render.",
+        "Evidence is inspectable.",
+        "Review alerts are visible."
+      ]
+    },
+    {
+      "id": "CLX-009",
+      "title": "Human review workflow",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-007"
+      ],
+      "acceptance_criteria": [
+        "Review cases are created.",
+        "Reviewer can inspect evidence.",
+        "Reviewer can resolve a case.",
+        "Resolution is audited."
+      ]
+    },
+    {
+      "id": "CLX-010",
+      "title": "English/Hindi/Gujarati translation",
+      "priority": "P1",
+      "status": "todo",
+      "dependencies": [
+        "CLX-008"
+      ],
+      "acceptance_criteria": [
+        "Language selector works.",
+        "Uncertainty state is preserved.",
+        "Translation does not create new patient-specific claims."
+      ]
+    },
+    {
+      "id": "CLX-011",
+      "title": "AMD inference integration",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-005"
+      ],
+      "acceptance_criteria": [
+        "AMD provider is implemented behind abstraction.",
+        "Actual AMD-compatible inference path is documented.",
+        "Actual execution is benchmarked when hardware/runtime is available."
+      ]
+    },
+    {
+      "id": "CLX-012",
+      "title": "Evaluation benchmark",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-007",
+        "CLX-009"
+      ],
+      "acceptance_criteria": [
+        "Synthetic/de-identified dataset exists.",
+        "Extraction accuracy is measured.",
+        "Evidence accuracy is measured.",
+        "Conflict detection is measured.",
+        "Review routing is measured.",
+        "Unsupported claim rate is measured."
+      ]
+    },
+    {
+      "id": "CLX-013",
+      "title": "Hackathon demo hardening",
+      "priority": "P0",
+      "status": "todo",
+      "dependencies": [
+        "CLX-008",
+        "CLX-009",
+        "CLX-010",
+        "CLX-011",
+        "CLX-012"
+      ],
+      "acceptance_criteria": [
+        "Normal case works end-to-end.",
+        "Bad OCR case works end-to-end.",
+        "Conflict case works end-to-end.",
+        "Human review works.",
+        "Metrics are shown.",
+        "Clean-start demo instructions work."
+      ]
+    }
+  ]
+}

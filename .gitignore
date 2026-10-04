@@ -1,0 +1,33 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local data — NEVER commit patient documents or local DBs
+apps/api/var/
+*.db
+*.sqlite
+*.sqlite3
+storage/
+
+# Generated evaluation outputs
+tests/evaluation/results/
+
+# OS
+.DS_Store

@@ -1,0 +1,36 @@
+{
+  "project": "CARELYNX",
+  "version": "2.0.0",
+  "status": "ready_for_agent",
+  "current_task_id": "CLX-000",
+  "last_completed_task_id": null,
+  "attempt": 0,
+  "total_attempts": 0,
+  "blocked": false,
+  "block_reason": null,
+  "last_error": null,
+  "last_test_result": null,
+  "last_updated": null,
+  "milestones": {
+    "bootstrap": "not_started",
+    "document_processing": "not_started",
+    "extraction": "not_started",
+    "evidence": "not_started",
+    "safety": "not_started",
+    "care_plan": "not_started",
+    "human_review": "not_started",
+    "multilingual": "not_started",
+    "amd": "not_started",
+    "evaluation": "not_started",
+    "demo": "not_started"
+  },
+  "safety": {
+    "diagnosis": false,
+    "treatment_recommendation": false,
+    "medication_modification": false,
+    "unsupported_claims": false,
+    "evidence_required": true,
+    "uncertainty_visible": true,
+    "human_review": true
+  }
+}
