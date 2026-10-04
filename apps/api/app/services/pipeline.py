@@ -20,4 +20,8 @@ async def run_document(db: Session, storage: StorageBackend, doc: Document, *, o
     from app.services.extraction import extract_facts
     await extract_facts(db, doc)
     
+    from app.services.conflicts import detect_conflicts
+    detect_conflicts(db, doc.case_id)
+    db.commit()
+    
     return doc

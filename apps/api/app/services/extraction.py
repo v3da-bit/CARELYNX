@@ -71,6 +71,10 @@ async def extract_facts(db: Session, doc: Document) -> None:
             confidence=1.0 if (candidate.legible and verified) else 0.0,
             extracted_by=provider.info.name
         )
+        
+        from app.safety.policy import enforce_safety_on_fact
+        enforce_safety_on_fact(fact)
+        
         db.add(fact)
         db.flush() # flush to get fact.id
 
@@ -85,6 +89,25 @@ async def extract_facts(db: Session, doc: Document) -> None:
             verified=verified
         )
         db.add(evidence)
+        db.flush()
+
+        if initial_status == FactStatus.HUMAN_REQUIRED:
+            from app.models.entities import ReviewCase
+            from app.models.enums import ReviewReason, ReviewSeverity, ReviewStatus
+            
+            reason = "Low text quality or missing evidence"
+            reason_code = ReviewReason.LOW_TEXT_QUALITY if not candidate.legible else ReviewReason.MISSING_EVIDENCE
+            
+            review = ReviewCase(
+                case_id=doc.case_id,
+                reason=reason,
+                reason_code=reason_code,
+                severity=ReviewSeverity.MEDIUM,
+                document_id=doc.id,
+                fact_ids=[str(fact.id)],
+                status=ReviewStatus.OPEN
+            )
+            db.add(review)
     
     audit.record(
         db,

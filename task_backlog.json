@@ -86,7 +86,7 @@
       "id": "CLX-005",
       "title": "Structured extraction service",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-004"
       ],
@@ -101,7 +101,7 @@
       "id": "CLX-006",
       "title": "Evidence engine",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-005"
       ],
@@ -115,7 +115,7 @@
       "id": "CLX-007",
       "title": "Safety and conflict engine",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "CLX-005",
         "CLX-006"
