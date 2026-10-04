@@ -81,7 +81,7 @@ def resolve_review(
     audit.record(
         db,
         AuditEvent.REVIEW_RESOLVED,
-        actor_type=ActorType.USER,
+        actor_type=ActorType.REVIEWER,
         actor_id=request.reviewer_id,
         case_id=review.case_id,
         review_id=str(review.id)
