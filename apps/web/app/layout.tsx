@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} ${deva.variable} ${guj.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <header className="border-b border-line/70 bg-bg/60 backdrop-blur sticky top-0 z-20">
           <nav className="mx-auto max-w-6xl px-5 h-14 flex items-center justify-between" aria-label="Main">
             <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight" id="nav-home">
