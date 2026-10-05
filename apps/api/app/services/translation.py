@@ -1,4 +1,5 @@
 import logging
+import uuid
 from sqlalchemy.orm import Session
 from app.ai.factory import get_inference_provider
 from app.ai.provider import StructuredRequest
@@ -9,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 async def translate_facts(db: Session, case_id: str, target_lang: str) -> dict:
     """Translate facts using the InferenceProvider."""
-    facts = db.scalars(select(Fact).where(Fact.case_id == case_id)).all()
+    # Ensure case_id is a UUID object for SQLAlchemy comparison
+    case_uuid = uuid.UUID(case_id) if isinstance(case_id, str) else case_id
+    facts = db.scalars(select(Fact).where(Fact.case_id == case_uuid)).all()
     
     if not facts:
         return {"translated_facts": []}

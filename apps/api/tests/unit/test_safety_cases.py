@@ -42,20 +42,43 @@ def test_missing_evidence_blocked():
     # Tested by extraction logic (verified = False -> HUMAN_REQUIRED)
     assert hasattr(FactStatus, "HUMAN_REQUIRED")
 
-def test_translation_of_uncertainty():
+import pytest
+
+@pytest.mark.asyncio
+async def test_translation_of_uncertainty(db: Session):
+    from unittest.mock import AsyncMock, patch
+    from app.services.translation import translate_facts
+    import uuid
+    from app.models.entities import Patient, Case
+    
+    patient = Patient(id=uuid.uuid4())
+    db.add(patient)
+    db.flush()
+    case_id = uuid.uuid4()
+    c = Case(id=case_id, patient_id=patient.id)
+    db.add(c)
+    db.flush()
+    
     fact = Fact(
+        case_id=case_id,
         fact_type=FactType.DOCUMENTED_CONDITION,
         value={"name": "Hypertension (possible)"},
         status=FactStatus.VERIFIED
     )
-    # The actual translation uses an LLM. In tests, we ensure the prompt logic enforces uncertainty.
-    from app.ai.provider import StructuredRequest
-    from app.services.translation import translate_facts
-    # Since translation relies on LLM, we can assert that our structured request prompt includes the safety instruction.
-    import inspect
-    source = inspect.getsource(translate_facts)
-    assert "Maintain all uncertainty" in source
-    assert "Do not add any new information" in source
+    db.add(fact)
+    db.commit()
+
+    with patch('app.services.translation.get_inference_provider') as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_structured.return_value = {"translated_facts": []}
+        mock_get_provider.return_value = mock_provider
+
+        await translate_facts(db, str(case_id), "hi")
+
+        mock_provider.generate_structured.assert_called_once()
+        call_args = mock_provider.generate_structured.call_args[0][0]
+        assert "Maintain all uncertainty" in call_args.system_prompt
+        assert "Do not add any new information" in call_args.system_prompt
 
 def test_llm_attempts_diagnosis_blocked():
     fact = Fact(
