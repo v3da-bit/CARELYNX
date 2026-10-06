@@ -88,11 +88,17 @@ export const uploadDocument = async (caseId: string, file: File): Promise<Docume
 
 export const processDocument = (docId: string) => api<{ status: string }>(`/documents/${docId}/process`, { method: "POST" });
 
+export interface DocumentResponse {
+  id: string;
+  filename: string;
+  processing_status: string;
+}
+
 export interface CaseOut {
   id: string;
   status: string;
-  documents: any[];
-  counts: any;
+  documents: DocumentResponse[];
+  counts: Record<string, unknown>;
 }
 
 export const getCase = (caseId: string) => api<CaseOut>(`/cases/${caseId}`);
@@ -100,7 +106,7 @@ export const getCase = (caseId: string) => api<CaseOut>(`/cases/${caseId}`);
 export interface FactResponse {
   id: string;
   fact_type: string;
-  value: Record<string, any>;
+  value: Record<string, unknown>;
   status: string;
   confidence: number | null;
   status_reasons: string[];
@@ -111,7 +117,7 @@ export const getFact = (factId: string) => api<FactResponse>(`/facts/${factId}`)
 
 export interface TranslatedFact {
   id: string;
-  translated_value: Record<string, any>;
+  translated_value: Record<string, unknown>;
 }
 
 export const translateCase = (caseId: string, lang: string) => 

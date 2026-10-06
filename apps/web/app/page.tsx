@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import { 
   getHealth, createCase, uploadDocument, processDocument, getCase, getCaseFacts, getFactEvidence, translateCase,
-  type Health, type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedFact
+  type Health, type CaseOut, type FactResponse, type EvidenceResponse
 } from "@/lib/api";
-import { FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, CheckCircle2, X, Globe } from "lucide-react";
+import { FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, CheckCircle2, X } from "lucide-react";
 
 export default function Home() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -18,7 +18,7 @@ export default function Home() {
   // Translation state
   const [language, setLanguage] = useState<"en" | "hi" | "gu">("en");
   const [isTranslating, setIsTranslating] = useState(false);
-  const [translations, setTranslations] = useState<Record<string, Record<string, any>>>({});
+  const [translations, setTranslations] = useState<Record<string, Record<string, unknown>>>({});
   
   // Evidence panel state
   const [selectedFact, setSelectedFact] = useState<FactResponse | null>(null);
@@ -37,7 +37,7 @@ export default function Home() {
   useEffect(() => {
     if (!activeCase || !isProcessing) return;
     
-    let interval = setInterval(async () => {
+    const interval = setInterval(async () => {
       try {
         const c = await getCase(activeCase.id);
         setActiveCase(c);
@@ -55,7 +55,7 @@ export default function Home() {
     }, 2000);
     
     return () => clearInterval(interval);
-  }, [activeCase?.id, isProcessing]);
+  }, [activeCase, isProcessing]);
 
   const handleLanguageChange = async (targetLang: "en" | "hi" | "gu") => {
     if (targetLang === "en") {
@@ -67,7 +67,7 @@ export default function Home() {
     setIsTranslating(true);
     try {
       const res = await translateCase(activeCase.id, targetLang);
-      const newMap: Record<string, any> = {};
+      const newMap: Record<string, Record<string, unknown>> = {};
       res.translated_facts.forEach(t => {
         newMap[t.id] = t.translated_value;
       });
@@ -101,8 +101,8 @@ export default function Home() {
       setActiveCase(c);
       setIsProcessing(true);
       
-    } catch (err: any) {
-      setError(err.message || "Upload failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -136,12 +136,15 @@ export default function Home() {
   const getFactTitle = (fact: FactResponse) => {
     const val = language === "en" || !translations[fact.id] ? fact.value : translations[fact.id];
     switch (fact.fact_type) {
-      case "encounter_date": return `Encounter: ${val.date} (${val.kind})`;
-      case "follow_up": return `Follow-up: ${val.date || "Unknown date"}`;
-      case "medication": return `${val.name} — ${val.instruction || val.timing}`;
-      case "warning_sign": return `Warning sign: ${val.symptom}`;
-      case "documented_condition": return `Condition: ${val.name}`;
-      case "allergy": return `Allergy: ${val.allergen}`;
+      case "encounter_date": return `Encounter: ${val.date || val.raw_text} (${val.kind})`;
+      case "follow_up": return `Follow-up: ${val.date || val.raw_text || "Unknown date"}`;
+      case "medication": {
+        const details = [val.strength, val.frequency, val.timing].filter(Boolean).join(" ");
+        return `${val.name} ${details ? "— " + details : ""}`;
+      }
+      case "warning_sign": return `Warning sign: ${val.text}`;
+      case "documented_condition": return `Condition: ${val.text}`;
+      case "allergy": return `Allergy: ${val.substance}`;
       case "instruction": return `Instruction: ${val.text}`;
       default: return fact.fact_type;
     }
@@ -323,7 +326,7 @@ export default function Home() {
                       <div className="relative">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-accent/50 rounded-l"></div>
                         <p className="pl-4 text-fg/90 italic bg-line/10 p-2 rounded rounded-l-none text-xs leading-relaxed">
-                          "{ev.snippet}"
+                          &quot;{ev.snippet}&quot;
                         </p>
                       </div>
                     ) : (

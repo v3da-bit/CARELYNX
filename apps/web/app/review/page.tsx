@@ -5,7 +5,7 @@ import {
   getOpenReviews, getFact, getFactEvidence, resolveReview,
   type ReviewCaseResponse, type FactResponse, type EvidenceResponse
 } from "@/lib/api";
-import { AlertTriangle, CheckCircle2, XCircle, FileText, Loader2, ArrowRight } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, FileText, Loader2 } from "lucide-react";
 
 export default function ReviewDashboard() {
   const [reviews, setReviews] = useState<ReviewCaseResponse[]>([]);
@@ -31,6 +31,7 @@ export default function ReviewDashboard() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReviews();
   }, []);
 
@@ -87,7 +88,7 @@ export default function ReviewDashboard() {
           <div className="mt-3 text-xs">
             <div className="text-muted mb-1 flex items-center gap-1"><FileText className="w-3 h-3"/> Evidence Snippet:</div>
             <div className="pl-3 border-l-2 border-accent/40 italic bg-accent/5 p-2 rounded rouded-l-none text-fg/80">
-              "{evidence[fact.id][0].snippet}"
+              &quot;{evidence[fact.id][0].snippet}&quot;
             </div>
           </div>
         )}
