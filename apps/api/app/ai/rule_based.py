@@ -31,7 +31,7 @@ class RuleBasedProvider:
                     "fact_type": "documented_condition",
                     "source": {"page_number": 1, "quote": d, "section": "Diagnoses"},
                     "legible": True,
-                    "value": {"name": d}
+                    "value": {"text": d}
                 })
         
         # 2. Medications
@@ -45,8 +45,8 @@ class RuleBasedProvider:
                     "legible": True,
                     "value": {
                         "name": name.strip(),
-                        "instruction": f"Take {dose} {inst.strip()}",
-                        "timing": None
+                        "strength": dose,
+                        "frequency": inst.strip()
                     }
                 })
                 
@@ -56,12 +56,11 @@ class RuleBasedProvider:
             for f in fups:
                 kind, date = f
                 facts.append({
-                    "fact_type": "encounter_date",
+                    "fact_type": "follow_up",
                     "source": {"page_number": 1, "quote": f"{kind} on {date}", "section": "Follow-up"},
                     "legible": True,
                     "value": {
-                        "kind": kind.strip(),
-                        "date": date.strip()
+                        "raw_text": f"{kind} on {date}".strip()
                     }
                 })
                 
@@ -77,8 +76,7 @@ class RuleBasedProvider:
                 "legible": True,
                 "value": {
                     "name": "Lisinopril",
-                    "instruction": "Take 10mg",
-                    "timing": None
+                    "strength": "10mg"
                 }
             })
             
