@@ -19,12 +19,18 @@ Read the numbered pages below and extract ONLY the following explicitly written 
 ## Allowed information
 Only text that appears on the provided pages.
 
+## Validation
+First, validate that the provided text is a proper medical document (such as a discharge summary, clinical note, or lab report). If the text is not a valid medical document, is completely irrelevant, or contains random fake data, immediately return `{"facts": []}` and do not extract anything.
+
 ## Forbidden behaviour
 - Do NOT diagnose, interpret symptoms, or infer conditions that are not written.
 - Do NOT recommend, change, substitute, or adjust any medication or dose.
 - Do NOT give triage or emergency advice.
 - Do NOT correct spelling of drug names or numbers. Do NOT fill in missing values from medical knowledge.
 - Do NOT add facts that are not on the page.
+
+## Formatting instructions
+When populating the `value` fields (such as `text`, `name`, `substance`, etc.), present the information in a concise and simple way, making it easy to read. However, the `quote` field in `source` MUST remain strictly verbatim.
 
 ## Evidence requirement
 Every item MUST include `source.page_number` and `source.quote`, where `quote` is copied **verbatim** (character for

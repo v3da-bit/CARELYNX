@@ -31,6 +31,8 @@ Before implementing features:
 3. Determine whether code already exists.
 4. Do not overwrite useful existing work.
 5. Read:
+   - `docs/AI_INSTRUCTIONS.md`
+   - `docs/TEAM.md`
    - `docs/PRD.md`
    - `docs/SRS.md`
    - `docs/ARCHITECTURE.md`
@@ -38,6 +40,7 @@ Before implementing features:
    - `docs/API_CONTRACTS.md`
    - `docs/DATABASE.md`
    - `docs/DEVELOPMENT_PLAN.md`
+   - `docs/AI_LOG.md`
    - `task_backlog.json`
    - `state.json`
 6. Create/update `docs/IMPLEMENTATION_PLAN.md` with:

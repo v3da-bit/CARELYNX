@@ -229,12 +229,28 @@
       "id": "CLX-014",
       "title": "Add missing PRD/SRS/ARCHITECTURE docs",
       "priority": "P2",
-      "status": "blocked",
+      "status": "done",
       "dependencies": [],
       "acceptance_criteria": [
         "docs/PRD.md, docs/SRS.md, docs/ARCHITECTURE.md present and reconciled with IMPLEMENTATION_PLAN.md"
       ],
-      "notes": "Referenced by CLAUDE.md but not present in the repository. Needs the source documents from the team."
+      "notes": "Synchronized from docs copy/ into docs/ as authoritative specification."
+    },
+    {
+      "id": "CLX-015",
+      "title": "Team charter, AI onboarding manual, and commit-style AI logging",
+      "priority": "P1",
+      "status": "done",
+      "dependencies": [
+        "CLX-014"
+      ],
+      "acceptance_criteria": [
+        "docs/TEAM.md created with 3-person roles and specific member instructions.",
+        "docs/AI_INSTRUCTIONS.md created with pre-flight rules to prevent conceptual drift.",
+        "docs/AI_LOG.md created with git-commit log format.",
+        "README.md overhauled with docs copy context."
+      ],
+      "notes": "Synchronized across repository with complete documentation index."
     }
   ]
 }

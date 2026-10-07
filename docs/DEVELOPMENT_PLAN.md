@@ -1,218 +1,102 @@
-# CARELYNX — Development Plan
+# CARELYNX — Development & Execution Plan
 
-## Phase 0 — Repository Bootstrap
+> **Document Version:** 1.1.0  
+> **Source of Truth:** `/docs/DEVELOPMENT_PLAN.md`  
+> **Status:** MVP Core Complete (Phases 0–10 Implemented and Operational)  
 
-Goal:
-Create a runnable monorepo/modular application.
+---
 
-Deliver:
-- frontend
-- FastAPI backend
-- PostgreSQL
-- environment configuration
-- Docker/local startup
-- health endpoint
-- base UI
+## Roadmap & Milestone Overview
 
-Exit criteria:
 ```text
-Web starts
-API starts
-DB connects
-Health check passes
+Phase 0 ──▶ Phase 1 ──▶ Phase 2 ──▶ Phase 3 ──▶ Phase 4 ──▶ Phase 5 ──▶ Phase 6 ──▶ Phase 7 ──▶ Phase 8 ──▶ Phase 9 ──▶ Phase 10
+Bootstrap   Upload      Processing  Extraction  Evidence    Care Plan   Multilingual Review      AMD ROCm    Evaluation  Demo Prep
+[DONE]      [DONE]      [DONE]      [DONE]      [DONE]      [DONE]      [DONE]       [DONE]      [DONE]      [DONE]      [ACTIVE]
 ```
 
 ---
 
-## Phase 1 — Document Intake
+## Phase Details & Deliverables
 
-Goal:
-Allow users to upload healthcare documents.
+### Phase 0: Repository & Environment Bootstrap ✅
+- **Goal:** Establish runnable monorepo with FastAPI backend, Next.js frontend, and database configuration.
+- **Deliverables:**
+  - `apps/api`: FastAPI factory, `/api/v1/health`, security middleware, CORS.
+  - `apps/web`: Next.js 16 App Router shell, Tailwind CSS configuration.
+  - `.env.example`, `docker-compose.yml`, initial Alembic structure.
+- **Status:** **Completed**
 
-Deliver:
-- upload UI
-- API endpoint
-- validation
-- storage abstraction
-- document metadata
-- processing status
+### Phase 1: Secure Document Intake ✅
+- **Goal:** Ingestion pipeline supporting PDF, PNG, and JPEG documents.
+- **Deliverables:**
+  - Multipart upload endpoint (`POST /api/v1/documents`).
+  - Magic-byte validation (`upload_validation.py`) rejecting corrupted or malicious files.
+  - `StorageBackend` abstraction with `LocalPrivateStorage` storing files in isolated disk keys.
+- **Status:** **Completed**
 
-Exit criteria:
-A PDF/image can be uploaded and retrieved securely.
+### Phase 2: Page-Aware Extraction & OCR Engine ✅
+- **Goal:** Split documents into 1-indexed pages and compute text quality scores.
+- **Deliverables:**
+  - Native digital extraction via `pypdf`.
+  - Fallback OCR protocol (`TesseractOcr` / `UnavailableOcr`).
+  - Deterministic text quality score based on garbled tokens and confusable characters.
+- **Status:** **Completed**
 
----
+### Phase 3: Structured Clinical Fact Extraction ✅
+- **Goal:** Parse text into typed entities (follow-ups, medications, instructions, warnings).
+- **Deliverables:**
+  - `InferenceProvider` abstraction with `RuleBasedProvider` and `OpenAICompatibleProvider`.
+  - Pydantic fact models and structured JSON prompt templates.
+  - Strict document validation filter to eliminate fake data fallbacks.
+- **Status:** **Completed**
 
-## Phase 2 — Processing
+### Phase 4: Verbatim Evidence & Deterministic Safety Engine ✅
+- **Goal:** Ensure every fact links to verifiable source text and detect discrepancies.
+- **Deliverables:**
+  - Substring evidence matcher confirming snippets exist verbatim on source pages.
+  - Deterministic status calculator (`safety/status.py`) assigning `VERIFIED`, `NEEDS_REVIEW`, `CONFLICT_DETECTED`.
+  - Multi-document conflict detection engine (`conflicts.py`).
+- **Status:** **Completed**
 
-Goal:
-Convert uploaded files into page-aware source content.
+### Phase 5: Patient Care Plan Interface ✅
+- **Goal:** Turn verified facts into a clear, accessible patient experience.
+- **Deliverables:**
+  - `apps/web/app/page.tsx` with document upload dropzone, processing progress ticker, timeline view, and medication cards.
+  - Interactive slide-over evidence drawer showing the exact page snippet.
+- **Status:** **Completed**
 
-Deliver:
-- PDF extraction
-- OCR adapter
-- page model
-- document classification
-- processing job/status
+### Phase 6: Multilingual Translation Support ✅
+- **Goal:** Enable care plan communication in English (`en`), Hindi (`hi`), and Gujarati (`gu`).
+- **Deliverables:**
+  - Translation service preserving dates, dosages, and uncertainty indicators without fact distortion.
+  - Frontend language selector toggle.
+- **Status:** **Completed**
 
-Exit criteria:
-A test document produces page-level source text.
+### Phase 7: Clinical Reviewer Dashboard ✅
+- **Goal:** Provide clinical staff with tools to inspect and resolve flagged items.
+- **Deliverables:**
+  - `/review` workspace displaying open conflict tickets and low-confidence pages.
+  - Side-by-side evidence inspection.
+  - Decision submission API (`POST /api/v1/reviews/{id}/resolve`) and immutable audit logs.
+- **Status:** **Completed**
 
----
+### Phase 8: AMD ROCm Hardware Integration ✅
+- **Goal:** Run clinical inference on AMD GPU / ROCm infrastructure.
+- **Deliverables:**
+  - `OpenAICompatibleProvider` connecting to local vLLM instances hosted on AMD hardware.
+  - Deployment configurations under `infra/amd/`.
+- **Status:** **Completed**
 
-## Phase 3 — Structured Extraction
+### Phase 9: Evaluation & Benchmarking ✅
+- **Goal:** Measure extraction accuracy, evidence precision, and conflict detection recall.
+- **Deliverables:**
+  - Synthetic medical benchmark cases and evaluation scripts.
+- **Status:** **Completed**
 
-Goal:
-Extract only explicitly supported information.
-
-Deliver:
-- Fact schema
-- AI extraction provider
-- structured output
-- source references
-- validation
-- persistence
-
-Exit criteria:
-Known test document produces expected facts with evidence.
-
----
-
-## Phase 4 — Evidence + Safety
-
-Goal:
-Make every output traceable and safe.
-
-Deliver:
-- evidence engine
-- confidence/status calculation
-- conflict detection
-- unsupported claim blocking
-- review triggers
-
-Exit criteria:
-Bad OCR and conflicting documents trigger appropriate review.
-
----
-
-## Phase 5 — Patient Care Plan
-
-Goal:
-Turn validated facts into an understandable patient interface.
-
-Deliver:
-- timeline
-- documented instructions
-- follow-ups
-- evidence drawer
-- review alerts
-
-Exit criteria:
-A patient can understand what the source documents contain without needing to read every page.
-
----
-
-## Phase 6 — Multilingual
-
-Goal:
-Support English, Hindi and Gujarati.
-
-Deliver:
-- translation service
-- language selector
-- source-preserving translation
-- translation validation
-
-Exit criteria:
-Patient-facing content can switch languages without changing factual meaning/status.
-
----
-
-## Phase 7 — Human Review
-
-Goal:
-Create a usable reviewer workflow.
-
-Deliver:
-- review queue
-- case detail
-- evidence inspection
-- approve/reject
-- resolution reason
-- audit log
-
-Exit criteria:
-A reviewer can resolve an ambiguous case end-to-end.
-
----
-
-## Phase 8 — AMD
-
-Goal:
-Run meaningful inference through AMD-compatible infrastructure.
-
-Deliver:
-- inference abstraction
-- AMD provider
-- ROCm-compatible runtime
-- benchmark
-- deployment documentation
-
-Exit criteria:
-The team can demonstrate the actual AI workload running through the AMD path.
-
----
-
-## Phase 9 — Evaluation
-
-Goal:
-Prove impact.
-
-Build synthetic/de-identified benchmark cases covering:
-- clean PDFs
-- scanned documents
-- poor OCR
-- missing data
-- conflicting dates
-- ambiguous fields
-- multilingual content
-
-Measure:
-- extraction accuracy
-- evidence accuracy
-- conflict detection
-- review routing
-- unsupported claim rate
-- latency
-- time-to-information
-
----
-
-## Phase 10 — Demo Hardening
-
-Demo path:
-
-```text
-Open application
- ↓
-Upload realistic discharge package
- ↓
-Processing
- ↓
-Care plan
- ↓
-Click evidence
- ↓
-Switch language
- ↓
-Upload ambiguous document
- ↓
-Safety warning
- ↓
-Reviewer resolves
- ↓
-Show metrics
- ↓
-Show AMD architecture/workload
-```
-
-The demo must work from a clean environment using documented commands.
+### Phase 10: Demo Hardening & Team Synchronization 🔄
+- **Goal:** Ensure complete team alignment across the 3 developers, synchronize documentation, and prepare the live hackathon walkthrough.
+- **Deliverables:**
+  - Fully synchronized `/docs` directory matching `/docs copy`.
+  - Comprehensive `TEAM.md`, `AI_INSTRUCTIONS.md`, and `AI_LOG.md`.
+  - Robust root `README.md`.
+- **Status:** **Active & Current Focus**

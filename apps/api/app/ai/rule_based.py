@@ -64,22 +64,6 @@ class RuleBasedProvider:
                     }
                 })
                 
-        if not facts:
-            # Fallback if regex fails to match anything
-            facts.append({
-                "fact_type": "medication",
-                "source": {
-                    "page_number": 1,
-                    "quote": "Lisinopril 10mg",
-                    "section": "Medications"
-                },
-                "legible": True,
-                "value": {
-                    "name": "Lisinopril",
-                    "strength": "10mg"
-                }
-            })
-            
         return {"facts": facts}
 
     async def generate_text(self, system_prompt: str, user_prompt: str) -> str:
