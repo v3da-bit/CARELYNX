@@ -72,8 +72,16 @@ The API runs on Python 3.10+ and uses SQLite by default (no Docker needed for lo
 ```bash
 cd apps/api
 python -m venv .venv
+
+# On Mac/Linux:
 source .venv/bin/activate
+# On Windows:
+# .venv\Scripts\activate
+
 pip install -r requirements.txt
+
+# Create the database tables
+alembic upgrade head
 
 # Start the API server on http://localhost:8000
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
