@@ -6,6 +6,56 @@
 
 ---
 
+## 0. ⛔ MANDATORY PRE-HOOK: READ BEFORE YOU EXECUTE
+
+**This section is a hard gate. You are NOT permitted to write code, modify
+files, run commands, create plans, or propose architectural changes until you
+have completed every step below.**
+
+### Pre-Hook Protocol
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CARELYNX AI PRE-HOOK GATE                            │
+│                                                                         │
+│  STEP 1: READ docs/AI_INSTRUCTIONS.md  (this file — finish it fully)   │
+│  STEP 2: READ docs/TEAM.md             (team roles & ownership)        │
+│  STEP 3: READ docs/PRD.md              (product vision & non-goals)    │
+│  STEP 4: READ docs/SRS.md              (functional requirements)       │
+│  STEP 5: READ docs/ARCHITECTURE.md     (system design & data flow)     │
+│  STEP 6: READ docs/API_CONTRACTS.md    (endpoint JSON contracts)       │
+│  STEP 7: READ docs/SAFETY.md           (evidence & conflict policies)  │
+│  STEP 8: READ docs/DATABASE.md         (table schemas & migrations)    │
+│  STEP 9: READ docs/AI_LOG.md           (previous agent task history)   │
+│                                                                         │
+│  ⛔ DO NOT SKIP ANY STEP                                                │
+│  ⛔ DO NOT BEGIN CODING UNTIL ALL 9 DOCUMENTS ARE READ                  │
+│  ✅ AFTER READING: State your alignment confirmation (see below)        │
+│  📝 AFTER TASK: Log your work in docs/AI_LOG.md                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Alignment Confirmation (Required Before First Code Change)
+
+After reading all 9 documents, you must state:
+
+> "**PRE-HOOK COMPLETE.** I have read and understood the following CARELYNX
+> governance documents: AI_INSTRUCTIONS.md, TEAM.md, PRD.md, SRS.md,
+> ARCHITECTURE.md, API_CONTRACTS.md, SAFETY.md, DATABASE.md, AI_LOG.md.
+> I confirm alignment with the established architecture, safety boundaries,
+> and team conventions. I will not introduce unauthorized frameworks,
+> hallucinate clinical data, or expand the product scope."
+
+### Why This Gate Exists
+
+Without this gate, previous AI sessions have:
+- Introduced hardcoded fake medical data ("Lisinopril") as fallback values.
+- Drifted the product scope toward unrelated EHR or chatbot concepts.
+- Overwritten working code with incompatible architectural patterns.
+- Failed to log their changes, leaving subsequent agents confused.
+
+This pre-hook prevents all of the above.
+
 ## 1. Project Identity & North Star Goal
 
 - **Project:** CARELYNX

@@ -2,6 +2,42 @@
 
 > This file is the primary instruction for the coding agent. Read it before changing any file.
 
+---
+
+# ⛔ MANDATORY PRE-FLIGHT READING GATE — EXECUTE BEFORE ALL ELSE
+
+**YOU MUST NOT write any code, modify any file, run any command, or propose any
+architectural change until you have read ALL of the following documents using
+your file-reading tool.**
+
+This is a hard prerequisite. Skipping it leads to misaligned implementations,
+safety violations, and wasted team effort.
+
+## Required Reading (in order):
+
+1. `docs/AI_INSTRUCTIONS.md` — Operating rules, safety boundaries, non-goals, task execution loop.
+2. `docs/TEAM.md` — 3-person team structure, domain ownership, member-specific instructions.
+3. `docs/PRD.md` — Product vision, user personas, MVP scope, strict non-goals.
+4. `docs/SRS.md` — Functional & non-functional requirements, error taxonomy.
+5. `docs/ARCHITECTURE.md` — System components, data flow, AMD ROCm integration, DB schema.
+6. `docs/API_CONTRACTS.md` — REST endpoint JSON contracts.
+7. `docs/SAFETY.md` — Evidence linking, conflict triggers, OCR handling, translation safety.
+8. `docs/DATABASE.md` — Table schemas, UUID keys, UTC timestamps, migrations.
+9. `docs/AI_LOG.md` — Historical task log (review what previous agents did).
+10. `task_backlog.json` — Current task queue and statuses.
+11. `state.json` — Current project state and milestone tracker.
+
+## After reading, confirm alignment:
+
+> "I have reviewed all required CARELYNX documents and confirm alignment with
+> the established architecture and safety boundaries."
+
+## After completing work:
+
+Append a git-commit formatted log entry to `docs/AI_LOG.md` (see format in
+`docs/AI_INSTRUCTIONS.md`).
+
+---
 ## 0. Mission
 
 You are the primary autonomous software engineer for **CARELYNX**, an AMD ACT 3 hackathon project.

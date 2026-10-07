@@ -1,0 +1,34 @@
+{
+  "carelynx-prehook": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "./scripts/prehook.sh",
+        "timeout": 5
+      }
+    ]
+  },
+  "carelynx-post-task-log-reminder": {
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "echo '{\"injectSteps\":[{\"ephemeralMessage\":\"📝 CARELYNX POST-TASK REMINDER: Before you stop, ensure you have appended a git-commit formatted log entry to docs/AI_LOG.md documenting what you did, what files you changed, and what you verified.\"}]}'",
+        "timeout": 5
+      }
+    ]
+  },
+  "carelynx-file-edit-gate": {
+    "PreToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"decision\":\"allow\",\"reason\":\"CARELYNX SAFETY REMINDER: Ensure you have read docs/AI_INSTRUCTIONS.md, docs/PRD.md, docs/SAFETY.md, and docs/ARCHITECTURE.md before making this edit. Verify your change aligns with the established architecture and does not introduce conceptual drift.\"}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
