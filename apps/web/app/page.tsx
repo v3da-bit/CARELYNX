@@ -68,7 +68,7 @@ export default function Home() {
     try {
       const res = await translateCase(activeCase.id, targetLang);
       const newMap: Record<string, Record<string, unknown>> = {};
-      res.translated_facts.forEach(t => {
+      res.facts.forEach(t => {
         newMap[t.id] = t.translated_value;
       });
       setTranslations(newMap);
