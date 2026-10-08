@@ -11,6 +11,28 @@
 ## Task Commit History
 
 ```text
+commit b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0
+Author: Antigravity Assistant <antigravity-ai@carelynx.local>
+Date:   2026-10-08 21:55:00 +0530
+
+    fix(api): refine rule_based translation fallback to improve demo UI clarity
+
+    - Context / Problem addressed:
+      The previous fallback simulation for the `rule_based` provider prepended the target
+      language tag (e.g., `[hi]`) to *every* string value in the extracted facts dictionary.
+      This caused the UI to look cluttered (e.g., `[hi] Azithromycin — [hi] 500mg [hi] PO...`),
+      which detracted from the demo experience.
+    - Architectural decisions & changes made:
+      1. Updated the translation dummy loop in `apps/api/app/services/translation.py` to only 
+         prepend the tag to semantic textual fields (`name`, `text`, `raw_text`, `instruction`,
+         `substance`, `kind`).
+      2. Dosages, frequencies, and raw dates are now left untouched, matching typical localization
+         patterns for medication regimens and ensuring a clean presentation in the UI.
+    - Files created / modified:
+      - apps/api/app/services/translation.py (modified)
+    - Verification & testing performed:
+      - Verified the simulated translation fallback logic applies tags selectively.
+
 commit 9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b
 Author: Antigravity Assistant <antigravity-ai@carelynx.local>
 Date:   2026-10-08 21:50:00 +0530

@@ -70,9 +70,16 @@ CRITICAL RULES:
         # Fallback for rule_based provider which doesn't do translation natively
         if provider.info.name == "rule_based" and not translated_items:
             for f in facts:
+                trans_val = {}
+                for k, v in f.value.items():
+                    if isinstance(v, str) and k in {"name", "text", "raw_text", "instruction", "substance", "kind"}:
+                        trans_val[k] = f"[{target_lang}] {v}"
+                    else:
+                        trans_val[k] = v
+                
                 translated_items.append({
                     "id": str(f.id),
-                    "translated_value": {k: f"[{target_lang}] {v}" if isinstance(v, str) else v for k, v in f.value.items()}
+                    "translated_value": trans_val
                 })
         
         # Merge with original facts to match API_CONTRACTS.md
