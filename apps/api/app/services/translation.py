@@ -28,9 +28,11 @@ CRITICAL RULES:
 - Do not add any new information.
 - Output ONLY the translated values in a JSON array matching the input structure."""
 
-    facts_json = [{"id": str(f.id), "type": f.fact_type, "value": f.value, "status": f.status} for f in facts]
+    import json
+    facts_json = [{"id": str(f.id), "type": f.fact_type.value if hasattr(f.fact_type, "value") else str(f.fact_type), "value": f.value, "status": f.status.value if hasattr(f.status, "value") else str(f.status)} for f in facts]
     
-    user_prompt = f"Translate these facts to {target_lang}:\n" + str(facts_json)
+    user_prompt = f"Translate these facts to {target_lang}:\n" + json.dumps(facts_json)
+
     
     schema = {
         "type": "object",

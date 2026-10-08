@@ -40,18 +40,21 @@ class Settings(BaseSettings):
 
     @property
     def resolved_database_url(self) -> str:
-        """Postgres when configured; otherwise a local SQLite file so the app stays runnable."""
+        """Postgres when configured; otherwise a local SQLite file formatted safely for any OS."""
         if self.database_url:
             return self.database_url
         var_dir = API_ROOT / "var"
         var_dir.mkdir(parents=True, exist_ok=True)
-        return f"sqlite:///{var_dir / 'carelynx.db'}"
+        db_path = (var_dir / "carelynx.db").resolve().as_posix()
+        return f"sqlite:///{db_path}"
 
     @property
     def storage_path(self) -> Path:
         p = Path(self.storage_local_dir)
         if not p.is_absolute():
-            p = API_ROOT / p
+            p = (API_ROOT / p).resolve()
+        else:
+            p = p.resolve()
         return p
 
     @property

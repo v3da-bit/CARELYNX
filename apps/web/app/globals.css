@@ -1,104 +1,170 @@
 @import "tailwindcss";
 
 /*
- * CARELYNX design tokens.
- * Calm, legible, non-authoritative. Status colours carry meaning and are never decorative.
+ * CARELYNX Design System
+ * Aesthetic: Clean, Modern, Human-Centric Medical & Care Navigation
+ * Reference Palette: Serene mint green (#00c07f, #10b981), sky blue (#2563eb, #0284c7),
+ * soft lavender (#ede9fe), warm white canvas with multi-directional pastel gradient mesh.
  */
 :root {
-  --bg: #0b1020;
-  --bg-elev: #121a2e;
-  --bg-elev-2: #18223a;
-  --border: #25314d;
-  --fg: #e7ecf5;
-  --fg-muted: #9aa6bf;
-  --accent: #5eead4;
-  --accent-2: #818cf8;
-
-  --verified: #34d399;
-  --verified-bg: rgba(52, 211, 153, 0.12);
-  --review: #fbbf24;
-  --review-bg: rgba(251, 191, 36, 0.12);
-  --human: #fb7185;
-  --human-bg: rgba(251, 113, 133, 0.12);
-  --conflict: #f472b6;
-  --conflict-bg: rgba(244, 114, 182, 0.12);
+  --bg: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f1f5f9;
+  --border: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  
+  --fg: #0f172a;
+  --fg-muted: #475569;
+  --fg-subtle: #64748b;
+  
+  --brand: #059669;
+  --brand-light: #10b981;
+  --brand-muted: #d1fae5;
+  
+  --accent: #2563eb;
+  --accent-light: #38bdf8;
+  --accent-subtle: #e0f2fe;
+  
+  /* Semantic Status Colors */
+  --verified: #059669;
+  --verified-bg: #ecfdf5;
+  --verified-border: #a7f3d0;
+  
+  --review: #d97706;
+  --review-bg: #fffbeb;
+  --review-border: #fde68a;
+  
+  --conflict: #dc2626;
+  --conflict-bg: #fef2f2;
+  --conflict-border: #fecaca;
 }
 
 @theme inline {
   --color-bg: var(--bg);
-  --color-elev: var(--bg-elev);
-  --color-elev-2: var(--bg-elev-2);
+  --color-surface: var(--bg-surface);
+  --color-surface-elevated: var(--bg-surface-elevated);
   --color-line: var(--border);
+  --color-line-subtle: var(--border-subtle);
+  
   --color-fg: var(--fg);
   --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-muted: var(--brand-muted);
+  
   --color-accent: var(--accent);
-  --color-accent-2: var(--accent-2);
+  --color-accent-light: var(--accent-light);
+  --color-accent-subtle: var(--accent-subtle);
+  
   --color-verified: var(--verified);
+  --color-verified-bg: var(--verified-bg);
+  --color-verified-border: var(--verified-border);
+  
   --color-review: var(--review);
-  --color-human: var(--human);
+  --color-review-bg: var(--review-bg);
+  --color-review-border: var(--review-border);
+  
   --color-conflict: var(--conflict);
-  --font-sans: var(--font-inter), var(--font-deva), var(--font-guj), system-ui, sans-serif;
+  --color-conflict-bg: var(--conflict-bg);
+  --color-conflict-border: var(--conflict-border);
+  
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans Devanagari", "Noto Sans Gujarati", "Nirmala UI", "Shruti", sans-serif;
 }
 
 html,
 body {
-  background: var(--bg);
+  background-color: #f6fbf9;
   color: var(--fg);
+  min-height: 100%;
 }
 
 body {
   font-family: var(--font-sans);
-  background-image:
-    radial-gradient(1200px 600px at 10% -10%, rgba(94, 234, 212, 0.08), transparent 60%),
-    radial-gradient(900px 500px at 110% 10%, rgba(129, 140, 248, 0.1), transparent 60%);
+  background-image: 
+    radial-gradient(1200px 700px at 0% 0%, rgba(186, 230, 253, 0.45), transparent 60%),
+    radial-gradient(1000px 600px at 100% 0%, rgba(167, 243, 208, 0.55), transparent 60%),
+    radial-gradient(1100px 700px at 50% 100%, rgba(233, 213, 255, 0.35), transparent 65%),
+    radial-gradient(900px 500px at 0% 80%, rgba(167, 243, 208, 0.35), transparent 55%);
   background-attachment: fixed;
 }
 
+/* Polished Card & Surface Elevation */
 .card {
-  background: linear-gradient(180deg, rgba(24, 34, 58, 0.85), rgba(18, 26, 46, 0.85));
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
 }
 
+.card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-hover:hover {
+  border-color: rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.08);
+}
+
+/* Verbatim Quote Highlight */
+.evidence-highlight {
+  background-color: #fef08a;
+  color: #854d0e;
+  border-bottom: 2px solid #ca8a04;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Animations */
 .fade-in {
-  animation: fadeIn 0.35s ease-out both;
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: translateY(0);
   }
 }
 
 .pulse-dot {
-  animation: pulseDot 1.4s ease-in-out infinite;
+  animation: pulseDot 1.5s ease-in-out infinite;
 }
 
 @keyframes pulseDot {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
-  border-radius: 6px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fade-in,
-  .pulse-dot {
-    animation: none;
+/* Print Stylesheet for Take-Home Care Plans */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header, footer, .no-print, button, .evidence-drawer {
+    display: none !important;
+  }
+  .card {
+    background: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    color: black !important;
+  }
+  .print-only {
+    display: block !important;
   }
 }
+

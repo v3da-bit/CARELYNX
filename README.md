@@ -139,51 +139,83 @@ All architectural specifications, contracts, and guidelines are maintained under
 
 ---
 
-## 6. Quickstart & Setup Guide
+## 6. Quickstart & Cross-Platform Setup Guide
+
+CARELYNX runs out-of-the-box on **Windows**, **macOS**, and **Linux** with automated cross-platform runners.
 
 ### 6.1 Prerequisites
 - **Node.js:** v18+ (v20+ recommended)
 - **Python:** 3.10+ (tested with Python 3.12)
 - **Git**
 
-### 6.2 Environment Configuration
-Copy the sample environment configuration:
+### 6.2 1-Command Automated Setup & Run (Recommended)
+
+#### On Any OS (Windows, macOS, Linux):
 ```bash
-cp .env.example .env
+# 1. Clone & enter directory
+git clone <repo-url>
+cd CARELYNX
+
+# 2. Automated setup (creates venv, installs Python & Node packages, runs DB migrations, generates sample PDFs)
+python run.py setup
+
+# 3. Start both backend (FastAPI) and frontend (Next.js) concurrently
+python run.py dev
 ```
 
-### 6.3 Backend Setup (FastAPI)
-The backend runs on FastAPI and uses a zero-configuration SQLite database (`carelynx.db`) by default for local development.
+#### OS-Specific Shortcuts:
+- **Windows (Command Prompt):**
+  ```cmd
+  run_dev.bat
+  ```
+- **Windows (PowerShell):**
+  ```powershell
+  .\run_dev.ps1
+  ```
+- **macOS / Linux (Bash / Zsh):**
+  ```bash
+  ./run_dev.sh
+  ```
+
+---
+
+### 6.3 Dedicated Service Commands
+
+You can also run individual services independently on any OS:
 
 ```bash
+python run.py api              # Start FastAPI backend only (http://localhost:8000)
+python run.py web              # Start Next.js frontend only (http://localhost:3000)
+python run.py test             # Run backend test suite
+python run.py generate-samples # Generate sample discharge PDFs
+```
+
+---
+
+### 6.4 Manual Step-by-Step Setup
+
+If you prefer running services manually in separate terminals:
+
+#### 1. Backend (FastAPI)
+```bash
 cd apps/api
+# Linux / macOS:
 python3 -m venv .venv
 source .venv/bin/activate
-# On Windows:
+
+# Windows:
+# python -m venv .venv
 # .venv\Scripts\activate
 
 pip install -r requirements.txt
-
-# Run database migrations
 alembic upgrade head
-
-# Start the development API server on port 8000
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Health check verification:
-```bash
-curl http://localhost:8000/api/v1/health
-```
-
-### 6.4 Frontend Setup (Next.js)
-The frontend uses Next.js App Router, React 19, and Tailwind CSS.
-
+#### 2. Frontend (Next.js)
 ```bash
 cd apps/web
 npm install
-
-# Start the web development server on port 3000
 npm run dev -- -H 0.0.0.0
 ```
 
