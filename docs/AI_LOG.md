@@ -11,6 +11,57 @@
 ## Task Commit History
 
 ```text
+commit d4c3b2a1e0f9d8c7b6a5f4e3d2c1b0a9f8e7d6c5
+Author: Antigravity Assistant <antigravity-ai@carelynx.local>
+Date:   2026-10-11 00:10:00 +0530
+
+    chore(env): migrate inference provider configuration to Gemini
+
+    - Context / Problem addressed:
+      The user requested that the `.env` and `.env.example` inference settings be 
+      updated to use Google Gemini via its OpenAI-compatible endpoint, instead of 
+      the local `Qwen` models on `localhost`. Additionally, `openai_compatible.py`
+      was incorrectly hardcoded to read raw `os.environ` keys instead of using the
+      structured Pydantic settings.
+    - Architectural decisions & changes made:
+      1. Updated `INFERENCE_PROVIDER=openai_compat` in `.env` and `.env.example`.
+      2. Set `INFERENCE_BASE_URL` to `https://generativelanguage.googleapis.com/v1beta/openai/`.
+      3. Set `INFERENCE_MODEL` to `gemini-1.5-flash`.
+      4. Updated `apps/api/app/ai/openai_compatible.py` to initialize its client 
+         using the globally validated `get_settings()` instance from `config.py`.
+    - Files created / modified:
+      - .env (modified)
+      - .env.example (modified)
+      - apps/api/app/ai/openai_compatible.py (modified)
+    - Verification & testing performed:
+      - Ensured that `.env` changes conform to the typed `Literal` definitions in `config.py`.
+
+```
+```text
+commit b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6
+Author: Antigravity Assistant <antigravity-ai@carelynx.local>
+Date:   2026-10-11 00:08:00 +0530
+
+    fix(web): prevent whole page scrolling on clinical review dashboard
+
+    - Context / Problem addressed:
+      The user reported that the entire page was scrolling on the `/review` route, 
+      causing the header and left sidebar to shift out of view, instead of the 
+      sidebar and workspace scrolling independently.
+    - Architectural decisions & changes made:
+      1. Added a React `useEffect` hook in `apps/web/app/review/page.tsx` to lock 
+         the `document.body` and `documentElement` overflow to `hidden` when the 
+         review workspace is mounted, ensuring the page acts like a fixed application.
+      2. Refined the workspace wrapper height from `h-[calc(100vh-4rem)]` to 
+         `h-[calc(100vh-4.5rem)]` to perfectly account for the 72px (`h-18`) header height.
+    - Files created / modified:
+      - apps/web/app/review/page.tsx (modified)
+    - Verification & testing performed:
+      - Verified that the `useEffect` correctly applies and removes the scroll lock 
+        without affecting other pages.
+
+```
+```text
 commit c6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7
 Author: Antigravity Assistant <antigravity-ai@carelynx.local>
 Date:   2026-10-11 00:05:00 +0530

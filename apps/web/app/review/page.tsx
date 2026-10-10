@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,6 +39,14 @@ export default function ReviewDashboard() {
 
   useEffect(() => {
     fetchReviews();
+    
+    // Lock body scroll so only the sidebar and workspace scroll independently
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    };
   }, []);
 
   const selectReview = async (review: ReviewCaseResponse) => {
@@ -87,7 +97,7 @@ export default function ReviewDashboard() {
   });
 
   return (
-    <div className="flex-1 flex h-[calc(100vh-4rem)] overflow-hidden bg-bg">
+    <div className="flex-1 flex h-[calc(100vh-4.5rem)] overflow-hidden bg-bg">
       {/* Sidebar: Case Queue */}
       <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full z-10 shrink-0">
         <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3">

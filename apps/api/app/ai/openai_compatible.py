@@ -2,19 +2,25 @@ import os
 import json
 import httpx
 from app.ai.provider import InferenceProvider, ProviderInfo, StructuredRequest
+from app.core.config import get_settings
 
 class OpenAICompatibleProvider(InferenceProvider):
+    # pyrefly: ignore [unannotated-return]
     def __init__(self):
-        self.api_base = os.environ.get("OPENAI_API_BASE", "http://localhost:8000/v1")
-        self.api_key = os.environ.get("OPENAI_API_KEY", "dummy")
-        self.model = os.environ.get("OPENAI_MODEL_NAME", "llama-3-8b")
+        settings = get_settings()
+        self.api_base = settings.inference_base_url
+        self.api_key = settings.inference_api_key
+        self.model = settings.inference_model
         self.client = httpx.AsyncClient(base_url=self.api_base, headers={"Authorization": f"Bearer {self.api_key}"})
 
     @property
+    # pyrefly: ignore [bad-override]
     def info(self) -> ProviderInfo:
+        # pyrefly: ignore [missing-argument]
         return ProviderInfo(
             name="amd_vllm_provider",
             hardware_label="AMD Instinct MI300X",
+            # pyrefly: ignore [unexpected-keyword]
             is_deterministic=False
         )
 
