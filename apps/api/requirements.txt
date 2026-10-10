@@ -8,3 +8,4 @@ psycopg[binary]==3.3.6
 python-multipart
 pypdf==6.19.0
 httpx==0.28.1
+deep-translator==1.11.4

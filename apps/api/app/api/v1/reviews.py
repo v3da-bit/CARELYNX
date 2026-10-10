@@ -10,8 +10,13 @@ from app.models.entities import ReviewCase, Fact, Conflict
 from app.models.enums import ReviewStatus, FactStatus, ConflictStatus, ActorType, AuditEvent
 from app.schemas.review import ReviewCaseResponse, ResolveReviewRequest
 from app.services import audit
+from app.core.security import require_reviewer
 
-router = APIRouter(prefix="/reviews", tags=["Reviews"])
+router = APIRouter(
+    prefix="/reviews",
+    tags=["Reviews"],
+    dependencies=[Depends(require_reviewer)]
+)
 
 @router.get("", response_model=list[ReviewCaseResponse])
 def get_open_reviews(db: Session = Depends(get_db)) -> Any:
@@ -82,6 +87,7 @@ def resolve_review(
         db,
         AuditEvent.REVIEW_RESOLVED,
         actor_type=ActorType.REVIEWER,
+        # pyrefly: ignore [bad-argument-type]
         actor_id=request.reviewer_id,
         case_id=review.case_id,
         review_id=str(review.id)

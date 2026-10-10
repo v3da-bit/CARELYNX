@@ -6,8 +6,11 @@ def test_health_ok(client: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["database"] == "ok"
+    assert body["database"] == "connected"
     assert body["inference_provider"] == "rule_based"
+    assert body["app"] == "carelynx-api"
+    assert body["version"] == "0.1.0"
+    assert body["storage"] == "local_private"
 
 
 def test_security_headers_and_request_id(client: TestClient) -> None:
