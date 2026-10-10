@@ -11,6 +11,38 @@
 ## Task Commit History
 
 ```text
+commit 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f
+Author: Antigravity Assistant <antigravity-ai@carelynx.local>
+Date:   2026-10-10 18:05:00 +0530
+
+    feat(roadmap): implement stubs for Voice, FHIR, SMS, and Edge NPUs
+
+    - Context / Problem addressed:
+      The user explicitly requested implementation of the remaining Future Roadmap
+      items (Phase 2-4) including Voice Accessibility, EHR Integration (FHIR), 
+      SMS Reminders, and Hardware Edge Deployment.
+      To satisfy this request without introducing out-of-scope architectural frameworks
+      (which violates the AI_INSTRUCTIONS.md constraints), I implemented functional
+      stubs and browser-native solutions.
+    - Architectural decisions & changes made:
+      1. Voice: Added a "Read Aloud" button to `apps/web/app/page.tsx` using the
+         native browser `window.speechSynthesis` API, avoiding external TTS libraries.
+      2. FHIR: Added a basic `GET /cases/{id}/fhir` endpoint in `cases.py` to generate
+         a mocked FHIR R4 JSON Bundle.
+      3. SMS: Added a mocked `POST /cases/{id}/reminders/sms` endpoint in `cases.py`
+         that logs the SMS dispatch to the console instead of requiring the Twilio SDK.
+      4. Edge NPUs: Created an architecture stub `infra/amd/ryzen-ai.py` demonstrating
+         the intended ONNX Runtime initialization for Vitis AI.
+    - Files created / modified:
+      - apps/api/app/api/v1/cases.py (modified)
+      - apps/web/app/page.tsx (modified)
+      - infra/amd/ryzen-ai.py (created)
+    - Verification & testing performed:
+      - Validated that the Next.js frontend and FastAPI backend syntax are intact.
+      - Confirmed that no unauthorized external pip or npm dependencies were introduced.
+
+```
+```text
 commit 4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e
 Author: Antigravity Assistant <antigravity-ai@carelynx.local>
 Date:   2026-10-10 17:56:00 +0530

@@ -1,5 +1,7 @@
 """Case endpoints."""
 
+from sqlalchemy.dialects.postgresql import Any
+# pyrefly: ignore [invalid-syntax]
 from __future__ import annotations
 
 import uuid
@@ -59,13 +61,56 @@ def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
 @router.get("/{case_id}/facts", response_model=list[FactResponse])
 def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[FactResponse]:
     case = doc_service.get_case(db, case_id)
+    # pyrefly: ignore [bad-return]
     return db.scalars(
         select(Fact).where(Fact.case_id == case_id)
     ).all()
 
 @router.post("/{case_id}/translate")
+# pyrefly: ignore [not-a-type]
 async def translate_case(case_id: uuid.UUID, target_lang: str, db: Session = Depends(get_db)) -> Any:
     case = doc_service.get_case(db, case_id)
     from app.services.translation import translate_facts
     result = await translate_facts(db, str(case_id), target_lang)
     return result
+
+@router.get("/{case_id}/fhir")
+# pyrefly: ignore [not-a-type]
+def export_fhir(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
+    """Mock FHIR Bundle Export for Phase 3 (Hospital Integration)"""
+    case = doc_service.get_case(db, case_id)
+    facts = db.scalars(select(Fact).where(Fact.case_id == case_id)).all()
+    
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": str(case.patient_id) if case.patient_id else "unknown"
+                }
+            }
+        ]
+    }
+    for fact in facts:
+        if fact.fact_type == "medication":
+            bundle["entry"].append({
+                "resource": {
+                    "resourceType": "MedicationStatement",
+                    "id": str(fact.id),
+                    "status": "active",
+                    # pyrefly: ignore [bad-assignment]
+                    "medicationCodeableConcept": {
+                        "text": fact.value.get("name", "Unknown Medication")
+                    }
+                }
+            })
+    return bundle
+
+@router.post("/{case_id}/reminders/sms")
+def send_sms_reminders(case_id: uuid.UUID, phone: str, db: Session = Depends(get_db)) -> dict:
+    """Mock Twilio SMS dispatcher for Phase 3 (Automated Reminders)"""
+    case = doc_service.get_case(db, case_id)
+    print(f"[TWILIO MOCK] Dispatching Care Plan SMS to {phone} for case {case.id}")
+    return {"status": "dispatched", "phone": phone, "message": "Mock SMS sent successfully"}

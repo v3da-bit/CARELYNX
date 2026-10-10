@@ -584,6 +584,18 @@ export default function Home() {
                 <span>Print Plan</span>
               </button>
 
+              {/* Voice Accessibility (Phase 2) */}
+              <button
+                onClick={() => {
+                  const speech = new SpeechSynthesisUtterance("Reading your care plan. " + facts.map(f => getFactTitle(f)).join(". "));
+                  window.speechSynthesis.speak(speech);
+                }}
+                className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+                title="Read Aloud (Voice Accessibility)"
+              >
+                <span>Read Aloud</span>
+              </button>
+
               <button
                 onClick={() => { setActiveCase(null); setFacts([]); }}
                 className="px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold transition-colors"
