@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  vllm-rocm:
+    image: rocm/vllm-rocm:latest
+    container_name: carelynx-vllm-amd
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    ports:
+      - "8080:8000"
+    ipc: host
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    command: >
+      --model meta-llama/Llama-3-8B-Instruct
+      --dtype half
+      --max-model-len 4096
+      --gpu-memory-utilization 0.9
