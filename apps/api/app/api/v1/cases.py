@@ -1,10 +1,9 @@
 """Case endpoints."""
 
-from sqlalchemy.dialects.postgresql import Any
-# pyrefly: ignore [invalid-syntax]
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -59,15 +58,13 @@ def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
     )
 
 @router.get("/{case_id}/facts", response_model=list[FactResponse])
-def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[FactResponse]:
+def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
     case = doc_service.get_case(db, case_id)
-    # pyrefly: ignore [bad-return]
     return db.scalars(
         select(Fact).where(Fact.case_id == case_id)
     ).all()
 
 @router.post("/{case_id}/translate")
-# pyrefly: ignore [not-a-type]
 async def translate_case(case_id: uuid.UUID, target_lang: str, db: Session = Depends(get_db)) -> Any:
     case = doc_service.get_case(db, case_id)
     from app.services.translation import translate_facts
@@ -75,13 +72,12 @@ async def translate_case(case_id: uuid.UUID, target_lang: str, db: Session = Dep
     return result
 
 @router.get("/{case_id}/fhir")
-# pyrefly: ignore [not-a-type]
 def export_fhir(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
     """Mock FHIR Bundle Export for Phase 3 (Hospital Integration)"""
     case = doc_service.get_case(db, case_id)
     facts = db.scalars(select(Fact).where(Fact.case_id == case_id)).all()
     
-    bundle = {
+    bundle: dict[str, Any] = {
         "resourceType": "Bundle",
         "type": "collection",
         "entry": [
@@ -100,7 +96,6 @@ def export_fhir(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
                     "resourceType": "MedicationStatement",
                     "id": str(fact.id),
                     "status": "active",
-                    # pyrefly: ignore [bad-assignment]
                     "medicationCodeableConcept": {
                         "text": fact.value.get("name", "Unknown Medication")
                     }

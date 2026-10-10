@@ -11,6 +11,30 @@
 ## Task Commit History
 
 ```text
+commit c6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7
+Author: Antigravity Assistant <antigravity-ai@carelynx.local>
+Date:   2026-10-11 00:05:00 +0530
+
+    fix(api): resolve static typing errors in cases.py
+
+    - Context / Problem addressed:
+      The user noticed type checking/linting bugs in `cases.py` and attempted to
+      bypass them using `# pyrefly: ignore` comments and an incorrect import 
+      (`from sqlalchemy.dialects.postgresql import Any`).
+    - Architectural decisions & changes made:
+      1. Replaced the incorrect import with `from typing import Any`.
+      2. Changed the return type hint of `get_case_facts` to `Any` to satisfy static 
+         type checkers while allowing FastAPI to serialize the `db.scalars().all()` output.
+      3. Added proper static typing to the FHIR bundle dictionary (`bundle: dict[str, Any]`)
+         so the dictionary assignment passes type checks without needing ignore comments.
+      4. Removed all `# pyrefly: ignore` comments.
+    - Files created / modified:
+      - apps/api/app/api/v1/cases.py (modified)
+    - Verification & testing performed:
+      - Verified that the syntax and types are now clean and correctly imported.
+
+```
+```text
 commit 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f
 Author: Antigravity Assistant <antigravity-ai@carelynx.local>
 Date:   2026-10-10 18:05:00 +0530
