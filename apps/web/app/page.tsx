@@ -20,7 +20,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Translation state
-  const [language, setLanguage] = useState<"en" | "hi" | "gu">("en");
+  const [language, setLanguage] = useState<"en" | "hi" | "gu" | "mr" | "ta" | "te">("en");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translations, setTranslations] = useState<Record<string, Record<string, unknown>>>({});
   
@@ -75,7 +75,7 @@ export default function Home() {
   }, [activeCase, isProcessing]);
 
   // Handle multilingual translation
-  const handleLanguageChange = async (targetLang: "en" | "hi" | "gu") => {
+  const handleLanguageChange = async (targetLang: "en" | "hi" | "gu" | "mr" | "ta" | "te") => {
     if (targetLang === "en") {
       setLanguage("en");
       return;
@@ -551,6 +551,27 @@ export default function Home() {
                   className={`px-3 py-1 rounded-full transition-all ${language === 'gu' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
                 >
                   ગુજરાતી
+                </button>
+                <button 
+                  onClick={() => handleLanguageChange("mr")} 
+                  disabled={isTranslating} 
+                  className={`px-3 py-1 rounded-full transition-all ${language === 'mr' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                >
+                  मराठी
+                </button>
+                <button 
+                  onClick={() => handleLanguageChange("ta")} 
+                  disabled={isTranslating} 
+                  className={`px-3 py-1 rounded-full transition-all ${language === 'ta' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                >
+                  தமிழ்
+                </button>
+                <button 
+                  onClick={() => handleLanguageChange("te")} 
+                  disabled={isTranslating} 
+                  className={`px-3 py-1 rounded-full transition-all ${language === 'te' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                >
+                  తెలుగు
                 </button>
                 {isTranslating && <Loader2 className="w-3 h-3 animate-spin text-brand ml-1 mr-2" />}
               </div>

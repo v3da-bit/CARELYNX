@@ -77,7 +77,10 @@ CRITICAL RULES:
             lang_map = {
                 "hi": "hi-IN",
                 "gu": "gu-IN",
-                "en": "en-GB"
+                "en": "en-GB",
+                "mr": "mr-IN",
+                "ta": "ta-IN",
+                "te": "te-IN"
             }
             mapped_target = lang_map.get(target_lang, target_lang)
             
