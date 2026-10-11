@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     storage_local_dir: str = "./var/storage"
     max_upload_mb: int = Field(default=15, ge=1, le=100)
 
-    inference_provider: Literal["rule_based", "openai_compat"] = "rule_based"
+    # `openai_compat` is the settings key; `openai_compatible` is accepted as a docs alias.
+    inference_provider: Literal["rule_based", "openai_compat", "openai_compatible"] = "rule_based"
     inference_base_url: str = "http://localhost:8001/v1"
     inference_model: str = "Qwen/Qwen2.5-7B-Instruct"
     inference_api_key: str = ""

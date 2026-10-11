@@ -34,13 +34,39 @@ def test_conflicting_dates_review(db: Session):
     assert f2.status == FactStatus.CONFLICT_DETECTED
 
 def test_low_ocr_confidence_review():
-    # Tested by extraction logic (candidate.legible = False -> HUMAN_REQUIRED)
-    # The actual enforcement logic lives in services/extraction.py, we just verify the enum exists.
-    assert hasattr(FactStatus, "HUMAN_REQUIRED")
+    from app.models.enums import ExtractionMethod, ReviewReason
+    from app.safety.status import compute_fact_status
+
+    decision = compute_fact_status(
+        evidence_verified=True,
+        page_quality=0.95,
+        ocr_confidence=0.40,
+        extraction_method=ExtractionMethod.OCR,
+        provider_legible=True,
+        safety_ok=True,
+        min_page_quality=0.85,
+        min_fact_confidence=0.80,
+    )
+    assert decision.status == FactStatus.NEEDS_REVIEW
+    assert decision.review_reason == ReviewReason.LOW_CONFIDENCE
+
 
 def test_missing_evidence_blocked():
-    # Tested by extraction logic (verified = False -> HUMAN_REQUIRED)
-    assert hasattr(FactStatus, "HUMAN_REQUIRED")
+    from app.models.enums import ExtractionMethod, ReviewReason
+    from app.safety.status import compute_fact_status
+
+    decision = compute_fact_status(
+        evidence_verified=False,
+        page_quality=0.95,
+        ocr_confidence=None,
+        extraction_method=ExtractionMethod.PDF_TEXT,
+        provider_legible=True,
+        safety_ok=True,
+        min_page_quality=0.85,
+        min_fact_confidence=0.80,
+    )
+    assert decision.status == FactStatus.HUMAN_REQUIRED
+    assert decision.review_reason == ReviewReason.MISSING_EVIDENCE
 
 import pytest
 

@@ -40,6 +40,7 @@ class DocumentOut(ORM):
     filename: str
     mime_type: str
     size_bytes: int
+    sha256: str | None = None
     page_count: int | None
     processing_status: ProcessingStatus
     document_kind: DocumentKind

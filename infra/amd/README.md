@@ -22,13 +22,20 @@ This directory contains the deployment configuration necessary to run the **Open
 
 ## Connecting the Backend
 
-Update your `apps/api/.env` file to point the inference engine to this node:
+Copy the keys from `infra/amd/.env.amd.example` into the repo-root `.env` so they match `app.core.config.Settings`:
 
 ```env
-INFERENCE_PROVIDER=openai_compatible
-OPENAI_COMPATIBLE_BASE_URL=http://localhost:8080/v1
-OPENAI_COMPATIBLE_MODEL=meta-llama/Llama-3-8B-Instruct
-OPENAI_COMPATIBLE_API_KEY=not-needed
+INFERENCE_PROVIDER=openai_compat
+INFERENCE_BASE_URL=http://localhost:8080/v1
+INFERENCE_MODEL=meta-llama/Llama-3-8B-Instruct
+INFERENCE_API_KEY=
+INFERENCE_HARDWARE_LABEL=amd-rocm-vllm
 ```
+
+`INFERENCE_HARDWARE_LABEL` must describe the host that actually served tokens. Do not label Gemini or CPU rule-based runs as AMD.
+
+Without a ROCm node, keep `INFERENCE_PROVIDER=rule_based`. The OpenAI-compatible client falls back to `RuleBasedProvider` on connection failure and still extracts only from supplied page text.
+
+Equivalent compose file: `docker-compose.rocm.yml`.
 
 Once running, CARELYNX will use local AMD hardware for structured clinical extraction.

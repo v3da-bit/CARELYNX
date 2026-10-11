@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
+
+import uuid
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -106,6 +107,9 @@ def export_fhir(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
 @router.post("/{case_id}/reminders/sms")
 def send_sms_reminders(case_id: uuid.UUID, phone: str, db: Session = Depends(get_db)) -> dict:
     """Mock Twilio SMS dispatcher for Phase 3 (Automated Reminders)"""
+    from app.core.errors import AppError, ErrorCode
+    if not phone or not phone.strip():
+        raise AppError(ErrorCode.VALIDATION_ERROR, "Phone number must not be empty.", 400)
     case = doc_service.get_case(db, case_id)
     print(f"[TWILIO MOCK] Dispatching Care Plan SMS to {phone} for case {case.id}")
     return {"status": "dispatched", "phone": phone, "message": "Mock SMS sent successfully"}
