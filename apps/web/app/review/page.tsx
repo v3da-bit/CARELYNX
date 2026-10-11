@@ -40,12 +40,18 @@ export default function ReviewDashboard() {
   useEffect(() => {
     fetchReviews();
     
-    // Lock body scroll so only the sidebar and workspace scroll independently
+    // Hide global footer and lock outer viewport so review queue and comparator scroll independently
+    const footer = document.querySelector("footer");
+    if (footer) footer.style.display = "none";
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
+    
     return () => {
-      document.documentElement.style.overflow = "";
-      document.body.style.overflow = "";
+      if (footer) footer.style.display = "";
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
     };
   }, []);
 
@@ -97,10 +103,10 @@ export default function ReviewDashboard() {
   });
 
   return (
-    <div className="flex-1 flex h-[calc(100vh-4.5rem)] overflow-hidden bg-bg">
+    <div className="flex-1 flex h-[calc(100vh-4.5rem)] max-h-[calc(100vh-4.5rem)] overflow-hidden bg-bg">
       {/* Sidebar: Case Queue */}
-      <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full z-10 shrink-0">
-        <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3">
+      <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full min-h-0 z-10 shrink-0">
+        <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="font-bold text-base text-slate-800 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-500" />
@@ -129,7 +135,10 @@ export default function ReviewDashboard() {
         </div>
         
         {/* Queue Items List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        <div 
+          className="flex-1 min-h-0 overflow-y-scroll divide-y divide-slate-100 custom-scrollbar overscroll-contain pb-16 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_#f8fafc] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-50 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400"
+          style={{ scrollbarGutter: "stable" }}
+        >
           {loading ? (
             <div className="p-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
               <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
@@ -169,7 +178,7 @@ export default function ReviewDashboard() {
       </aside>
 
       {/* Main: Clinical Comparator Workspace */}
-      <main className="flex-1 h-full overflow-y-auto bg-slate-50/40 p-6 sm:p-8">
+      <main className="flex-1 h-full min-h-0 min-w-0 overflow-y-auto bg-slate-50/40 p-6 sm:p-8 custom-scrollbar pb-16">
         {selectedReview ? (
           <div className="max-w-4xl mx-auto flex flex-col gap-6 fade-in">
             {/* Header Callout */}
