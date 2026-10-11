@@ -11,6 +11,41 @@
 ## Task Commit History
 
 ```text
+commit e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6
+Author: Antigravity Assistant <antigravity-ai@carelynx.local>
+Date:   2026-10-11 12:13:00 +0530
+
+    fix(ui): resolve scroll freeze and enable visible scrollbar on left review navigation
+
+    - Context / Problem addressed:
+      When review cases were populated in the left navigation bar on `/review`, mouse
+      and trackpad scrolling remained non-functional. Previous attempts used
+      `document.body.style.overflow = "hidden"` on mount, which swallowed mouse wheel events
+      in WebKit and Chromium on macOS. Additionally, nested flex percentage heights failed
+      to bind the aside's scroll container within the layout.
+    - Architectural decisions & changes made:
+      1. Anchored the review workspace using `fixed inset-0 top-[72px] z-20` in
+         `apps/web/app/review/page.tsx`, directly binding it to viewport dimensions
+         below the 72px header without depending on outer flex resolution.
+      2. Removed the `document.documentElement` and `document.body` overflow lock in
+         `useEffect`, restoring natural wheel and touch event dispatching to the list.
+      3. Added `.review-queue-scroll` in `apps/web/app/globals.css` with explicit 8px width,
+         `#f1f5f9` track, rounded `#94a3b8` thumb, hover styling, and Firefox `scrollbar-color`.
+      4. Kept footer suppression (`footer.style.display = "none"`) while on `/review` to
+         eliminate off-screen layout displacement.
+    - Files created / modified:
+      - apps/web/app/globals.css (modified)
+      - apps/web/app/review/page.tsx (modified)
+      - docs/AI_LOG.md (modified)
+    - Verification & testing performed:
+      - TypeScript verified cleanly with `npx tsc --noEmit`.
+      - Live browser testing verified: the left navigation bar displays a styled scrollbar
+        and scrolls smoothly through all 65 cases on mouse wheel, trackpad, and thumb dragging,
+        while the header and right clinical comparator remain stationary.
+
+```
+
+```text
 commit c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9
 Author: Antigravity Assistant <antigravity-ai@carelynx.local>
 Date:   2026-10-11 11:58:00 +0530
