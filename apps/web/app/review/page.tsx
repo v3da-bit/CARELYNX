@@ -40,18 +40,12 @@ export default function ReviewDashboard() {
   useEffect(() => {
     fetchReviews();
     
-    // Hide global footer and lock outer viewport so review queue and comparator scroll independently
+    // Hide global footer while on review workspace
     const footer = document.querySelector("footer");
     if (footer) footer.style.display = "none";
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    const prevBodyOverflow = document.body.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
     
     return () => {
       if (footer) footer.style.display = "";
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.body.style.overflow = prevBodyOverflow;
     };
   }, []);
 
@@ -103,7 +97,7 @@ export default function ReviewDashboard() {
   });
 
   return (
-    <div className="flex-1 flex h-[calc(100vh-4.5rem)] max-h-[calc(100vh-4.5rem)] overflow-hidden bg-bg">
+    <div className="fixed inset-0 top-[72px] flex overflow-hidden bg-bg z-20">
       {/* Sidebar: Case Queue */}
       <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full min-h-0 z-10 shrink-0">
         <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3 shrink-0">
@@ -136,7 +130,7 @@ export default function ReviewDashboard() {
         
         {/* Queue Items List */}
         <div 
-          className="flex-1 min-h-0 overflow-y-scroll divide-y divide-slate-100 custom-scrollbar overscroll-contain pb-16 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_#f8fafc] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-50 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400"
+          className="flex-1 min-h-0 overflow-y-scroll divide-y divide-slate-100 review-queue-scroll overscroll-contain pb-16"
           style={{ scrollbarGutter: "stable" }}
         >
           {loading ? (
