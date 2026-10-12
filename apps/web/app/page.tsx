@@ -185,6 +185,23 @@ function HomeContent() {
           setIsProcessing(false);
           const f = await getCaseFacts(c.id);
           setFacts(f);
+
+          // Auto-translate summary upon completion if a non-English language is active
+          if (language !== "en") {
+            setIsTranslating(true);
+            try {
+              const res = await translateCase(c.id, language);
+              const newMap: Record<string, Record<string, unknown>> = {};
+              res.facts.forEach(t => {
+                newMap[t.id] = t.translated_value;
+              });
+              setTranslations(newMap);
+            } catch (err) {
+              console.error("Auto-translation on summary creation failed:", err);
+            } finally {
+              setIsTranslating(false);
+            }
+          }
         }
       } catch (err) {
         console.error(err);
@@ -192,7 +209,7 @@ function HomeContent() {
     }, 1200);
     
     return () => clearInterval(interval);
-  }, [activeCase, isProcessing]);
+  }, [activeCase, isProcessing, language]);
 
   // Handle multilingual translation
   const handleLanguageChange = async (targetLang: "en" | "hi" | "gu" | "mr" | "ta" | "te") => {
@@ -589,7 +606,7 @@ function HomeContent() {
                       Source-Preserving Translation
                     </h3>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Instant translation to Hindi and Gujarati while locking drug names, dosages, and dates to prevent translation errors.
+                      Instant Google translation to Hindi, Gujarati, Marathi, Tamil, and Telugu while locking drug names, dosages, and dates.
                     </p>
                   </div>
                 </div>
@@ -597,7 +614,7 @@ function HomeContent() {
                   onClick={() => handleLanguageChange("hi")}
                   className="text-xs font-semibold text-teal-700 hover:text-teal-800 flex items-center gap-1 self-start cursor-pointer"
                 >
-                  <span>Try Hindi / Gujarati Mode</span>
+                  <span>Try Hindi / Regional Mode</span>
                   <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
@@ -638,8 +655,8 @@ function HomeContent() {
                 <span className="text-xs font-medium text-slate-500 mt-1">Verbatim Evidence Grounded</span>
               </div>
               <div className="flex flex-col items-center justify-center pt-2 sm:pt-0">
-                <span className="text-3xl font-extrabold text-slate-900">3+</span>
-                <span className="text-xs font-medium text-slate-500 mt-1">Regional Languages (EN, HI, GU)</span>
+                <span className="text-3xl font-extrabold text-slate-900">6</span>
+                <span className="text-xs font-medium text-slate-500 mt-1">Regional Languages (EN, HI, GU, MR, TA, TE)</span>
               </div>
             </div>
           </section>

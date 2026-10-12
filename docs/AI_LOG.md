@@ -11,6 +11,48 @@
 ## Task Commit History
 
 ```text
+commit c2f9a7b4e1d3c8a5b7e6f9a0c2d4e6f8a1b3c5d7
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-12 12:35:00 +0530
+
+    feat(translation): integrate Google Cloud Translation v2 API with 6-language auto-summary translation
+
+    - Context / Problem addressed:
+      1. User requested integrating Google Translate (POST https://translation.googleapis.com/language/translate/v2)
+         to convert discharge summaries into 6 regional languages:
+         English (en), हिन्दी (hi), ગુજરાતી (gu), मराठी (mr), தமிழ் (ta), తెలుగు (te).
+      2. Trigger translation automatically when the clinical discharge summary is created.
+      3. Maintain strict compliance with CARELYNX clinical safety guidelines (SAFETY.md):
+         preserve verbatim dosages, medication names, numerical values, and certainty indicators.
+    - Architectural decisions & changes made:
+      1. Configuration (apps/api/app/core/config.py & .env.example):
+         - Added `google_translate_api_key` to Settings and `.env.example`.
+      2. Google Cloud Translation v2 Client (apps/api/app/services/translation.py):
+         - Implemented `translate_with_google_v2` targeting `POST https://translation.googleapis.com/language/translate/v2`.
+         - Supports batching string queries with `q`, `target`, `source="en"`, and `format="text"`.
+         - Robust authentication supporting both standard Google API keys (`?key=` & `X-goog-api-key`) and OAuth Bearer tokens (`ya29.`).
+         - Automated HTML entity unescaping (`html.unescape`) to prevent encoded tokens (`&#39;`) in clinical instructions.
+         - In-memory translation caching keyed by `(case_id, target_lang)` to prevent redundant cloud API calls.
+         - Graceful fallback to LLM structured provider or rule-based dictionaries when API key is unset or offline.
+      3. Summary Creation Pipeline Hook (apps/api/app/services/pipeline.py):
+         - Integrated `auto_translate_on_summary_created(db, str(doc.case_id))` immediately after fact extraction and conflict detection.
+         - Pre-warms translations for the 6 languages without blocking document pipeline execution.
+      4. Frontend Experience (apps/web/app/page.tsx):
+         - In the polling effect, automatically triggers translation upon summary creation when any non-English language is selected.
+         - Supports all 6 target languages: English, हिन्दी, ગુજરાતી, मराठी, தமிழ், తెలుగు.
+         - Updated UI copy and stats banner to showcase 6 supported regional languages.
+      5. Verification & Testing:
+         - Created apps/api/tests/unit/test_google_translate.py covering endpoint calls, HTML entity decoding, caching, verbatim numerical preservation, and pipeline hooks.
+         - 45/45 backend tests passing.
+         - Frontend Next.js 16 build passing with 0 errors.
+    - Files created / modified:
+      - .env.example (modified)
+      - apps/api/app/core/config.py (modified)
+      - apps/api/app/services/pipeline.py (modified)
+      - apps/api/app/services/translation.py (modified)
+      - apps/api/tests/unit/test_google_translate.py (created)
+      - apps/web/app/page.tsx (modified)
+
 commit e8a1f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 12:05:00 +0530

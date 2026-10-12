@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     inference_timeout_s: float = 60.0
     inference_hardware_label: str = "local-cpu"
 
+    google_translate_api_key: str = ""
+
     safety_min_page_quality: float = Field(default=0.85, ge=0.0, le=1.0)
     safety_min_fact_confidence: float = Field(default=0.80, ge=0.0, le=1.0)
 

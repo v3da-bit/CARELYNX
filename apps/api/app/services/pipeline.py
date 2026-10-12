@@ -23,5 +23,9 @@ async def run_document(db: Session, storage: StorageBackend, doc: Document, *, o
     from app.services.conflicts import detect_conflicts
     detect_conflicts(db, doc.case_id)
     db.commit()
+
+    # Automatically pre-warm translations when summary is created
+    from app.services.translation import auto_translate_on_summary_created
+    await auto_translate_on_summary_created(db, str(doc.case_id))
     
     return doc
