@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import logging
 import re
+import sqlite3
 from collections.abc import Awaitable, Callable, Sequence
 
 import httpx
@@ -57,6 +59,52 @@ _LETTERS = re.compile(r"[^\W\d_]")
 
 _CACHE_MAX = 2048
 _CACHE: dict[tuple[str, str, tuple[str, ...]], str] = {}
+# Verified translations also persist on disk so restarts/redeploys don't re-spend the free engines' quota.
+# ponytail: one SQLite file beside the private document store; move to a DB table if multi-host.
+_DISK_CACHE_NAME = ".translation_cache.sqlite3"
+_FREE_BATCH_CHARS = 4500  # free Google endpoint limit per request is ~5000 chars
+
+
+def _disk() -> sqlite3.Connection:
+    root = get_settings().storage_path
+    root.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(root / _DISK_CACHE_NAME)
+    con.execute("CREATE TABLE IF NOT EXISTS t (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
+    return con
+
+
+def _cache_get(key: tuple[str, str, tuple[str, ...]]) -> str | None:
+    if (hit := _CACHE.get(key)) is not None:
+        return hit
+    try:
+        with _disk() as con:
+            row = con.execute("SELECT v FROM t WHERE k = ?", (json.dumps(key),)).fetchone()
+    except sqlite3.Error:
+        return None
+    if row:
+        _CACHE[key] = row[0]
+    return row[0] if row else None
+
+
+def _cache_put(key: tuple[str, str, tuple[str, ...]], value: str) -> None:
+    if len(_CACHE) >= _CACHE_MAX:
+        _CACHE.pop(next(iter(_CACHE)))
+    _CACHE[key] = value
+    try:
+        with _disk() as con:
+            con.execute("INSERT OR REPLACE INTO t (k, v) VALUES (?, ?)", (json.dumps(key), value))
+    except sqlite3.Error:
+        logger.warning("Translation disk cache unavailable")
+
+
+def clear_cache() -> None:
+    """Drop both cache layers (tests)."""
+    _CACHE.clear()
+    try:
+        with _disk() as con:
+            con.execute("DELETE FROM t")
+    except sqlite3.Error:
+        pass
 
 Engine = Callable[[list[str], Language], Awaitable[list[str | None]]]
 
@@ -122,21 +170,46 @@ async def _deep_translator(texts: list[str], lang: Language) -> list[str | None]
     from deep_translator import GoogleTranslator
 
     translator = GoogleTranslator(source="en", target=lang.value)
+    # One request per ~4.5k chars instead of one per item: per-item bursts trip the free endpoint's
+    # 5 requests/second limit and get the IP blocked for hours.
+    chunks: list[list[str]] = [[]]
+    for t in texts:
+        t = t.replace("\n", " ")
+        if chunks[-1] and sum(len(x) + 1 for x in chunks[-1]) + len(t) > _FREE_BATCH_CHARS:
+            chunks.append([])
+        chunks[-1].append(t)
+
+    def run() -> list[str | None]:
+        out: list[str | None] = []
+        for chunk in chunks:
+            lines = (translator.translate("\n".join(chunk)) or "").split("\n")
+            out.extend(lines if len(lines) == len(chunk) else [None] * len(chunk))
+        return out
+
     # ponytail: blocking client in a worker thread; on timeout the thread is abandoned, not killed.
-    return await asyncio.to_thread(lambda: [translator.translate(t) for t in texts])
+    return await asyncio.to_thread(run)
 
 
 async def _mymemory(texts: list[str], lang: Language) -> list[str | None]:
     """Last resort when the free Google endpoint rate-limits this IP (common on shared networks)."""
     from deep_translator import MyMemoryTranslator
 
-    def one(text: str) -> str | None:
-        try:
-            return MyMemoryTranslator(source="en-GB", target=f"{lang.value}-IN").translate(text)
-        except Exception:  # noqa: BLE001 — a failed item is simply left untranslated
-            return None
+    def run() -> list[str | None]:
+        # Sequential, and stop at the first refusal: parallel bursts burn the daily quota (~5k chars/IP).
+        out: list[str | None] = []
+        for text in texts:
+            try:
+                result = MyMemoryTranslator(source="en-GB", target=f"{lang.value}-IN").translate(text)
+            except Exception as exc:  # noqa: BLE001 — quota/rate limit/network: give up on the rest
+                skipped = len(texts) - len(out)
+                logger.warning("MyMemory refused (%s); skipping %d items", type(exc).__name__, skipped)
+                break
+            if not result or "MYMEMORY WARNING" in result.upper():  # quota notice returned as "translation"
+                break
+            out.append(result)
+        return out + [None] * (len(texts) - len(out))
 
-    return list(await asyncio.gather(*(asyncio.to_thread(one, t) for t in texts)))
+    return await asyncio.to_thread(run)
 
 
 def _engines() -> list[tuple[str, Engine]]:
@@ -162,7 +235,7 @@ async def translate_texts(
     results: list[str | None] = [None] * len(texts)
     pending: dict[int, tuple[str, dict[str, str]]] = {}
     for i, text in enumerate(texts):
-        if (cached := _CACHE.get((text, lang.value, protected))) is not None:
+        if (cached := _cache_get((text, lang.value, protected))) is not None:
             results[i] = cached
             continue
         try:
@@ -196,9 +269,7 @@ async def translate_texts(
             results[i] = final
             del pending[i]
             accepted += 1
-            if len(_CACHE) >= _CACHE_MAX:
-                _CACHE.pop(next(iter(_CACHE)))
-            _CACHE[(texts[i], lang.value, protected)] = final
+            _cache_put((texts[i], lang.value, protected), final)
         logger.info(
             "Translation engine %s accepted %d/%d items (lang=%s)", name, accepted, len(idx), lang.value
         )

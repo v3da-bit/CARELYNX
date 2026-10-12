@@ -18,9 +18,9 @@ SRC = "Aspirin 75 mg once daily after lunch from 14 Oct 2026 at 10:30 AM, call 0
 
 @pytest.fixture(autouse=True)
 def _clean_cache():
-    translation._CACHE.clear()
+    translation.clear_cache()
     yield
-    translation._CACHE.clear()
+    translation.clear_cache()
 
 
 def _fake_engine(fn, calls=None):
@@ -182,3 +182,58 @@ def test_llm_engine_uses_versioned_prompt() -> None:
         out = asyncio.run(translation._llm(["Rest"], Language.TA))
     assert out == ["अनुवाद: Rest"]
     assert "Tamil" in seen["system"] and "Never change certainty" in seen["system"]
+
+
+def test_free_google_sends_one_request_per_batch() -> None:
+    calls: list[str] = []
+
+    class FakeGoogle:
+        def __init__(self, **_: object) -> None: ...
+
+        def translate(self, text: str) -> str:
+            calls.append(text)
+            return "\n".join(f"HI:{line}" for line in text.split("\n"))
+
+    with patch("deep_translator.GoogleTranslator", FakeGoogle):
+        out = asyncio.run(translation._deep_translator([f"item {i}" for i in range(17)], Language.HI))
+    assert len(calls) == 1  # not 17: per-item bursts get the IP rate-limited
+    assert out == [f"HI:item {i}" for i in range(17)]
+
+
+def test_free_google_line_mismatch_yields_none() -> None:
+    class FakeGoogle:
+        def __init__(self, **_: object) -> None: ...
+
+        def translate(self, text: str) -> str:
+            return "merged into one line"
+
+    with patch("deep_translator.GoogleTranslator", FakeGoogle):
+        out = asyncio.run(translation._deep_translator(["a", "b"], Language.HI))
+    assert out == [None, None]
+
+
+def test_mymemory_stops_at_quota_warning_and_never_returns_it() -> None:
+    calls: list[str] = []
+
+    class FakeMyMemory:
+        def __init__(self, **_: object) -> None: ...
+
+        def translate(self, text: str) -> str:
+            calls.append(text)
+            return "ठीक" if len(calls) == 1 else "MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS"
+
+    with patch("deep_translator.MyMemoryTranslator", FakeMyMemory):
+        out = asyncio.run(translation._mymemory(["a", "b", "c", "d"], Language.HI))
+    assert out == ["ठीक", None, None, None]
+    assert len(calls) == 2  # stopped after the refusal instead of hammering the quota
+
+
+def test_verified_translations_survive_a_restart() -> None:
+    engine_calls: list[list[str]] = []
+    engines = [("fake", _fake_engine(lambda t: f"HI {t}", engine_calls))]
+    with patch.object(translation, "_engines", lambda: engines):
+        first = asyncio.run(translate_texts(["Drink plenty of fluids"], Language.HI))
+        translation._CACHE.clear()  # simulate a process restart: memory gone, disk kept
+        second = asyncio.run(translate_texts(["Drink plenty of fluids"], Language.HI))
+    assert first == second == ["HI Drink plenty of fluids"]
+    assert len(engine_calls) == 1

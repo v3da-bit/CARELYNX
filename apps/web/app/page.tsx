@@ -681,6 +681,9 @@ function HomeContent() {
               <p className="text-xs text-slate-600 mt-0.5 font-medium">
                 Extracted from {activeCase.documents.length} document{activeCase.documents.length === 1 ? '' : 's'}. Items marked for review are not yet confirmed.
               </p>
+              {language !== "en" && !isTranslating && Object.keys(translations).length === 0 && facts.some(f => f.status === "VERIFIED") && (
+                <p role="status" className="text-xs text-amber-800 mt-1 font-medium">{TRANSLATION_UNAVAILABLE[language]}</p>
+              )}
             </div>
 
             {/* Language Switcher and Action Pills */}
@@ -1287,4 +1290,13 @@ const READ_ALOUD_INTRO: Record<Lang, string> = {
   mr: "तुमची काळजी योजना वाचली जात आहे.",
   ta: "உங்கள் பராமரிப்பு திட்டம் வாசிக்கப்படுகிறது.",
   te: "మీ సంరక్షణ ప్రణాళిక చదవబడుతోంది.",
+};
+
+const TRANSLATION_UNAVAILABLE: Record<Lang, string> = {
+  en: "",
+  hi: "अनुवाद सेवा अभी उपलब्ध नहीं है — मूल अंग्रेज़ी पाठ दिखाया जा रहा है।",
+  gu: "અનુવાદ સેવા હાલમાં ઉપલબ્ધ નથી — મૂળ અંગ્રેજી લખાણ બતાવવામાં આવી રહ્યું છે.",
+  mr: "भाषांतर सेवा सध्या उपलब्ध नाही — मूळ इंग्रजी मजकूर दाखवला जात आहे.",
+  ta: "மொழிபெயர்ப்பு சேவை இப்போது கிடைக்கவில்லை — அசல் ஆங்கில உரை காட்டப்படுகிறது.",
+  te: "అనువాద సేవ ప్రస్తుతం అందుబాటులో లేదు — అసలు ఆంగ్ల వచనం చూపబడుతోంది.",
 };
