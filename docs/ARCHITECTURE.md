@@ -1,7 +1,7 @@
 # CARELYNX — System Architecture
 
-> **Document Version:** 1.2.0  
-> **Source of Truth:** `/docs/ARCHITECTURE.md` (Synced with `/docs copy/ARCHITECTURE.md`)  
+> **Document Version:** 1.3.0  
+> **Source of Truth:** `/docs/ARCHITECTURE.md` (the former `/docs copy/ARCHITECTURE.md` is merged in here)  
 > **Target Audience:** Engineering Team & AI Coding Assistants  
 
 ---
@@ -103,6 +103,11 @@ Build a modular, evidence-first healthcare document processing platform where AI
   - `RuleBasedProvider` (default): deterministic, page-aware extractor. Reads the real page texts from `request.context["pages"]` and recognises document *shapes* (labelled fields, list items under headings, `<name> <dose><unit> …` medication lines, label/value table rows) — no drug-name list, no invented values. Quotes are verbatim slices of the page they cite; OCR-damaged text is reported with `legible=false` and unreadable fields `null`. Cannot generate free text.
   - `OpenAICompatibleProvider` (`openai_compat`): `/v1/chat/completions` client with `response_format: json_schema`, for vLLM on AMD ROCm (or any compatible endpoint). Never falls back silently.
 - **Fallback policy (`app/services/extraction.py::run_extraction`):** if a non-rule-based provider fails (network, malformed JSON, schema violation) the rule-based extractor is used and facts record `extracted_by = "rule_based (fallback from openai_compat)"`, with an audit event. If that also fails → `ProviderError` → `502 MODEL_ERROR`.
+- **Validation flow — the LLM is never the final authority:**
+  ```text
+  Source document → OCR / text → structured extraction (LLM or rule_based)
+    → Pydantic schema validation → verbatim evidence validation → safety validation → persist
+  ```
 - **Prompt Isolation:** versioned prompts under `apps/api/app/ai/prompts/` (`extraction_v1.md`, `translation_v1.md`), each stating role, task, allowed information, forbidden behaviour, output schema, evidence and abstention rules.
 
 ### 3.5 Evidence & Safety Engine (`apps/api/app/safety`, `app/services/conflicts.py`)
@@ -207,3 +212,103 @@ Client (Web)                  FastAPI Router                  Document Pipeline 
 2. **Storage Isolation:** Uploaded medical records are stored with randomized UUID keys, never accessible directly by URL or static route.
 3. **No Clinical Hallucination:** Zero clinical advice generation. If a document does not mention an item, the model cannot supply one.
 4. **Data Sanitization:** Passwords, keys, and raw clinical document blobs are excluded from application logs.
+5. **Secrets:** all secrets come from environment variables (`.env`, never committed) or a secret manager.
+6. **Logging — never log:** passwords, API keys, full documents, patient text sent for translation, or unnecessary patient identifiers.
+
+**Target (not implemented in the MVP):**
+- Real authentication with session/token management, and role-based authorization for `PATIENT`, `CAREGIVER`, `REVIEWER`, `ADMIN` (today: the demo `X-Carelynx-Role` header).
+- Document access restricted per case/user (today: the unguessable case UUID acts as the capability).
+- Encryption at rest for documents and the database; TLS in transit is available through the Docker proxy (`SITE_ADDRESS`, README §7).
+
+---
+
+## 8. End-to-End Data Flow
+
+```text
+ 1. User uploads a document             →  API validates type (magic bytes) and size
+ 2. Document stored privately            →  documents row created (UPLOADED)
+ 3. Processing triggered                 →  POST /documents/{id}/process (synchronous in the MVP)
+ 4. Text extraction / OCR runs           →  text segmented into 1-indexed pages + quality score
+ 5. AI extracts structured candidates    →  schema validator checks the output
+ 6. Evidence engine links facts to pages →  unsupported quotes are rejected or routed to review
+ 7. Safety engine checks policy, confidence and cross-document conflicts
+ 8. Review cases created where needed    →  facts get their deterministic status
+ 9. Care plan built from facts           →  GET /cases/{id}/care-plan (REJECTED excluded)
+10. Translation of VERIFIED text only    →  masked, verified, or shown in English
+11. Patient / reviewer sees the result   →  every step writes an audit_logs row
+```
+
+---
+
+## 9. Safety Architecture
+
+```text
+             Generated candidate
+                     │
+                     ▼
+              Schema validator ──── invalid ──▶ REJECTED
+                     │
+                     ▼
+              Evidence checker
+             ┌───────┴────────┐
+             ▼                ▼
+         Supported       Unsupported ──▶ HUMAN_REQUIRED / REJECTED
+             │
+             ▼
+   Safety + confidence + conflict checks
+       ┌─────┴──────┐
+       ▼            ▼
+     Safe        Uncertain / conflicting
+       │            │
+       ▼            ▼
+   VERIFIED     NEEDS_REVIEW / CONFLICT_DETECTED → human review
+```
+
+**Golden rule: no evidence → no definitive claim.** Details: `docs/SAFETY.md`.
+
+---
+
+## 10. Observability
+
+| Signal | Where it is captured today |
+|---|---|
+| Processing stages, safety blocks, conflicts, reviews, document access, care-plan generation | `audit_logs` (`GET /cases/{id}/audit`) |
+| Extraction provider / fallback provenance | `facts.extracted_by` + audit event |
+| Extraction precision/recall, evidence correctness, escalation, unsupported-claim rate, latency | `apps/api/scripts/evaluate_clinical.py` |
+| Model latency on the GPU endpoint | `infra/amd/benchmark_rocm.py` |
+| Review resolution time | `review_cases.created_at` → `resolved_at` |
+
+Target: export these as metrics (processing duration, OCR/extraction/evidence failures, review triggers, model latency, token/resource usage) to a monitoring stack.
+
+---
+
+## 11. Deployment
+
+Implemented (`docker-compose.yml`, README §7): one stack that runs on any Docker host.
+
+```text
+browser ──▶ proxy (Caddy, HTTP/HTTPS) ──┬── /api/* ──▶ api (FastAPI) ──▶ db (Postgres 16)
+                                        │                    └──▶ llm (vLLM; --profile amd | nvidia)
+                                        └── /*     ──▶ web (Next.js standalone)
+```
+
+For production scale, separate the web tier, API tier, a worker tier for asynchronous processing (not built: processing is synchronous today), the AI inference tier, the database, object storage (S3-compatible / Supabase; not built) and observability.
+
+---
+
+## 12. Future Architecture
+
+```text
+                    CARELYNX PLATFORM
+                           │
+       ┌───────────────────┼───────────────────┐
+       ▼                   ▼                   ▼
+ Patient Journey      Staff Copilot       Integrations
+ Documents            Review queue        Hospital systems
+ Appointments         Workflow            FHIR / HL7
+ Intake               Analytics           Scheduling
+ Discharge
+       │
+       ▼
+ Evidence graph → Safety + human oversight → AMD-accelerated AI
+```

@@ -13,6 +13,26 @@
 ```text
 commit (uncommitted — branch fix/audit-pending-work)
 Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
+Date:   2026-10-12 21:00:00 +0530
+
+    docs: merge /docs copy drafts into docs/PRD, SRS and ARCHITECTURE; remove /docs copy
+
+    - Context / Problem addressed:
+      Two parallel spec sets existed (/docs and the older /docs copy); the copy held content /docs lacked.
+    - Changes made:
+      1. ARCHITECTURE.md 1.3.0: LLM validation flow, security secrets/logging rules + clearly marked targets
+         (4-role auth, encryption at rest), end-to-end data flow, safety architecture, observability map,
+         Docker deployment, future architecture.
+      2. PRD.md 1.2.0: product-experience mockups, safety product requirements, extra metrics ("do not
+         claim before measuring"), hackathon demo, expanded roadmap and long-term vision.
+      3. SRS.md 1.2.0: FR-018 AMD deployment path, FR-019 application-level confidence, NFR-006..009,
+         safety triggers (verified against code), testing requirements, acceptance criteria 9-12; fixed
+         stale FR-015 reviewer-key wording (role header is in use).
+      4. References in TEAM.md, IMPLEMENTATION_PLAN.md, DEVELOPMENT_PLAN.md updated; /docs copy removed.
+    - Alignment check: unimplemented items are labelled as targets; no capability is claimed that the code lacks.
+
+commit (uncommitted — branch fix/audit-pending-work)
+Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
 Date:   2026-10-12 20:30:00 +0530
 
     feat(infra): deploy-anywhere Docker stack with Caddy proxy and AMD/NVIDIA LLM profiles

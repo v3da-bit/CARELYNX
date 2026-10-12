@@ -96,7 +96,7 @@ Bootstrap   Upload      Processing  Extraction  Evidence    Care Plan   Multilin
 ### Phase 10: Demo Hardening & Team Synchronization ✅
 - **Goal:** Ensure complete team alignment across the 3 developers, synchronize documentation, and prepare the live hackathon walkthrough.
 - **Deliverables:**
-  - Fully synchronized `/docs` directory matching `/docs copy`.
+  - Single `/docs` specification set (the `/docs copy` drafts were later merged into PRD, SRS and ARCHITECTURE).
   - Comprehensive `TEAM.md`, `AI_INSTRUCTIONS.md`, and `AI_LOG.md`.
   - Robust root `README.md`.
 - **Status:** **Completed**

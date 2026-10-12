@@ -1,7 +1,7 @@
 # CARELYNX — Software Requirements Specification (SRS)
 
-> **Document Version:** 1.1.0  
-> **Source of Truth:** `/docs/SRS.md` (Synced with `/docs copy/SRS.md`)  
+> **Document Version:** 1.2.0  
+> **Source of Truth:** `/docs/SRS.md` (the former `/docs copy/SRS.md` is merged in here)  
 > **Target Audience:** Engineering Team (Frontend, Backend, AI/Inference) & AI Coding Assistants  
 
 ---
@@ -54,11 +54,15 @@ This document provides the formal software requirements for the CARELYNX applica
 
 ### Clinical Review & Auditability
 - **FR-015: Reviewer Decision Workflow**  
-  Authorized reviewers shall be able to review flagged items, inspect side-by-side source evidence, and submit structured decisions (`APPROVE`, `REJECT`, `SELECT_SOURCE`, `CORRECT_VALUE`) with a mandatory written rationale; reviewers authenticate with a server-issued key.
+  Authorized reviewers shall be able to review flagged items, inspect side-by-side source evidence, and submit structured decisions (`APPROVE`, `REJECT`, `SELECT_SOURCE`, `CORRECT_VALUE`) with a mandatory written rationale. Reviewer endpoints require the demo role header `X-Carelynx-Role: reviewer`.
 - **FR-016: Immutable Audit Logging**  
   The system shall record an audit log entry for every document processing stage, safety block, conflict detection, and human review resolution.
 - **FR-017: AI Provider Abstraction**  
   The backend shall define an abstract `InferenceProvider` allowing transparent switching between rule-based local development, AMD ROCm vLLM server, and mock providers without code modifications.
+- **FR-018: AMD Deployment Path**  
+  The inference layer shall support an AMD-compatible (ROCm) deployment path for the hackathon workload, and results shall be labelled as AMD only when they actually ran on AMD hardware.
+- **FR-019: Application-Level Confidence**  
+  Each fact shall carry a system-computed confidence derived from validation signals (page quality, OCR confidence, evidence, legibility), never the model's self-reported confidence.
 
 ---
 
@@ -80,12 +84,25 @@ This document provides the formal software requirements for the CARELYNX applica
   - AI Engine: Clean provider abstraction layer.
 
 ### NFR-004: Frontend Accessibility & Usability
-- High contrast, legible typography (Tailwind theme), keyboard-accessible modals/drawers, and clear status badges.
+- High contrast, legible typography (Tailwind theme), keyboard-accessible core patient workflows, modals and drawers, and clear status badges.
 - Intuitive error banners explaining clinical uncertainty in non-alarming, constructive language.
 
 ### NFR-005: Performance & Response Times
 - Document upload and ingestion must respond in $< 500\text{ms}$.
 - Synchronous processing pipeline must complete within $< 5\text{s}$ for a standard 3-page discharge document on local hardware.
+- The UI shall show visible upload/processing progress and must not block unnecessarily.
+
+### NFR-006: Security
+- Sensitive data shall be protected in transit (TLS via the deployment proxy) and at rest (target; see ARCHITECTURE §7).
+
+### NFR-007: Observability
+- Important processing, safety and review events shall be recorded (`audit_logs`).
+
+### NFR-008: Traceability
+- Every patient-facing, document-derived claim must be traceable to source evidence (document, page, snippet).
+
+### NFR-009: Safety
+- The system shall not provide autonomous diagnosis or treatment recommendations.
 
 ---
 
@@ -148,7 +165,21 @@ return `403 FORBIDDEN` for any other role. The reviewer identity is the `reviewe
 
 ---
 
-## 6. Error Handling Taxonomy
+## 6. Safety Triggers
+
+A review case shall be created when:
+- OCR confidence / page text quality is below the configured threshold (`SAFETY_MIN_PAGE_QUALITY`, default 0.85).
+- Required source evidence is missing or does not match the page verbatim.
+- Two documents conflict on the same fact.
+- A high-risk field (medication, allergy, follow-up date, red-flag symptom) is not `VERIFIED`.
+- The safety policy validator blocks an output.
+- Processing fails (OCR/parse errors).
+
+Invalid structured output from the LLM does not open a review: extraction falls back to the rule-based provider and the fallback is audited (ARCHITECTURE §3.4). Translation output that loses or alters a protected term or number is not shown; the English source is shown instead (SAFETY.md §5).
+
+---
+
+## 7. Error Handling Taxonomy
 
 Every error uses `{"error": {"code", "message", "request_id"}}`; stack traces and paths are never returned.
 
@@ -170,7 +201,15 @@ Every error uses `{"error": {"code", "message", "request_id"}}`; stack traces an
 
 ---
 
-## 7. Acceptance Criteria (Definition of Done)
+## 8. Testing Requirements
+
+- **Unit:** file validation, schema validation, confidence/status mapping, evidence matching, conflict detection, safety policy, translation masking.
+- **Integration:** upload → extraction, extraction → evidence, evidence → care plan, conflict → review case, review resolution → audit.
+- **Evaluation:** fixed synthetic benchmark (`apps/api/demo/fixtures.py`, `scripts/evaluate_clinical.py`) tracking precision, recall, evidence-link correctness, conflict detection, human-review routing and unsupported-claim rate.
+
+---
+
+## 9. Acceptance Criteria (Definition of Done)
 
 The CARELYNX MVP is accepted when all criteria below are verified:
 1. Users can upload standard medical discharge PDFs and images via the frontend.
@@ -181,3 +220,7 @@ The CARELYNX MVP is accepted when all criteria below are verified:
 6. Clinical reviewers can inspect side-by-side evidence on the `/review` route and submit decisions.
 7. Care plan timeline displays correctly in all six supported languages without fact degradation.
 8. The system runs cleanly with zero cloud lock-in via SQLite/FastAPI/Next.js.
+9. No autonomous diagnosis or treatment behaviour exists.
+10. The AMD inference path is demonstrated (pending a GPU run — CLX-020).
+11. Audit events are recorded.
+12. Benchmark results are available.

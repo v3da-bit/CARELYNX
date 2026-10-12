@@ -2,7 +2,7 @@
 
 > **Document Version:** 1.2.0  
 > **Source of Truth:** `/docs/IMPLEMENTATION_PLAN.md`  
-> **Status:** Synchronized with `/docs copy/` (PRD, SRS, ARCHITECTURE restored)  
+> **Status:** `/docs` is the single specification set (the former `/docs copy/` drafts are merged into PRD, SRS and ARCHITECTURE)  
 
 ---
 

@@ -1,7 +1,7 @@
 # CARELYNX — Product Requirements Document (PRD)
 
-> **Document Version:** 1.1.0  
-> **Source of Truth:** `/docs/PRD.md` (Synced with `/docs copy/PRD.md`)  
+> **Document Version:** 1.2.0  
+> **Source of Truth:** `/docs/PRD.md` (the former `/docs copy/PRD.md` is merged in here)  
 > **Target Event / Context:** Healthcare Document Processing & Patient Care Navigation  
 
 ---
@@ -124,11 +124,13 @@ To prevent clinical risk, CARELYNX enforces explicit boundaries. CARELYNX will *
 - Enforces file type sniffing (magic bytes) and configurable size limits (max 10MB per file).
 - Preserves raw document identity, cryptographic SHA-256 hash, and internal storage isolation.
 - Preserves individual page segmentation for precise evidence linking.
+- Shows upload and processing progress to the user.
 
 ### 7.2 Page-Aware Text Extraction & OCR
 - Extracts digital text using native PDF extraction (`pypdf`).
 - Degrades gracefully to OCR for image-based or scanned documents.
 - Deterministic text quality scoring: Flags degraded scans, garbled characters, or low-confidence pages.
+- Captures page number, section and document type (discharge summary, prescription, follow-up) for every page.
 
 ### 7.3 Structured Fact Extraction
 Extracts only explicitly stated clinical facts:
@@ -136,6 +138,8 @@ Extracts only explicitly stated clinical facts:
 - **Documented Instructions:** Post-op wound care, activity limits, diet.
 - **Medications as Explicitly Written:** Drug name, dosage, frequency, route (zero dose adjustment).
 - **Explicit Warnings / Precautions:** Documented "Red flag" symptoms requiring immediate medical attention.
+- **Allergies, documented conditions and admission/discharge dates**, exactly as written.
+- Lab/report references are out of scope for the MVP extractor.
 
 ### 7.4 Evidence Linking Engine
 - Every candidate fact **must link to source evidence**: Document ID, page number, section title, and verbatim excerpt snippet.
@@ -171,7 +175,57 @@ Every extracted fact is assigned a deterministic status:
 
 ---
 
-## 8. AMD Inference Architecture Integration
+## 8. Product Experience
+
+Patient dashboard:
+```text
+CARELYNX
+────────────────────────
+Your Care Plan
+
+✓ Verified information
+⚠ Needs review
+🔴 Human review required
+
+Timeline
+  14 Oct — Follow-up
+  21 Oct — Documented review
+
+Documents
+  Discharge Summary · Prescription · Follow-up letter
+```
+
+Evidence panel:
+```text
+CLAIM    Follow-up date: 14 Oct
+SOURCE   Discharge Summary · Page 2 · Section: Follow-up
+STATUS   ✓ Verified
+```
+
+Review panel:
+```text
+REVIEW REQUIRED — Two documents contain different follow-up dates.
+Document A: 14 Oct
+Document B: 16 Oct
+System action: no automatic resolution.
+Reviewer: [Select A] [Select B] [Correct value] [Reject] + required rationale
+```
+
+Visual design must never imply medical authority or more certainty than the status supports.
+
+---
+
+## 9. Safety Product Requirements
+
+- **Evidence:** every document-derived medical statement has a source (document, page, verbatim snippet).
+- **Abstention:** when evidence is insufficient, the system abstains: "This information could not be reliably extracted. Human verification is required."
+- **Conflict:** conflicting medical facts always trigger review; the system never picks a value.
+- **Human review:** high-risk (medications, allergies, follow-up dates, red-flag symptoms) or ambiguous items enter the review workflow.
+- **Translation:** translation never increases certainty, never adds recommendations, and never alters drug names, doses, dates or numbers.
+
+---
+
+## 10. AMD Inference Architecture Integration
 
 CARELYNX is architected to utilize AMD-accelerated hardware for local, high-throughput, private clinical inference:
 - **Inference Abstraction:** Clean `InferenceProvider` interface allowing seamless swapping between rule-based local dev providers and ROCm-powered LLM endpoints.
@@ -180,7 +234,11 @@ CARELYNX is architected to utilize AMD-accelerated hardware for local, high-thro
 
 ---
 
-## 9. Success Metrics (Evaluation Benchmark)
+## 11. Success Metrics (Evaluation Benchmark)
+
+Measured on a fixed synthetic / de-identified benchmark (`apps/api/scripts/evaluate_clinical.py`). **Do not claim an improvement before it has been measured.**
+
+Targets:
 
 1. **Evidence-Linking Accuracy:** $\ge 98\%$ of presented claims must have valid, verbatim source page citations.
 2. **Hallucination / Unsupported Claim Rate:** $0\%$ unsupported claims presented to patients without review warnings.
@@ -188,10 +246,31 @@ CARELYNX is architected to utilize AMD-accelerated hardware for local, high-thro
 4. **Review Escalation Accuracy:** 100% of low-confidence OCR or ambiguous items successfully routed to the review queue.
 5. **Language Preservation:** 100% preservation of dates, dosages, and uncertainty indicators across all six supported languages.
 
+Also tracked:
+- **Safety:** false-confidence rate (non-verifiable items shown as verified), missed-conflict rate.
+- **Efficiency:** time to locate follow-up information, time to produce the patient summary, reviewer time per case.
+- **Accessibility:** translation completion time; patient comprehension testing where feasible.
+
 ---
 
-## 10. Future Roadmap
+## 12. Hackathon Demo
 
-- **Phase 2:** Voice interface for low-literacy patients; further regional languages beyond the six shipped in the MVP.
-- **Phase 3:** Hospital EHR integration via FHIR / HL7 standard endpoints; automated post-discharge SMS reminders.
-- **Phase 4:** Edge inference running directly on clinic workstation AMD Ryzen AI NPUs for zero-cloud data isolation.
+1. Messy discharge documents → upload → processing.
+2. Structured, evidence-linked care plan (Scenario A).
+3. Bad-OCR document flagged, not guessed (Scenario B).
+4. Conflicting documents → `CONFLICT_DETECTED` → human review (Scenario C).
+5. Multilingual output in six languages (Scenario D).
+6. Reviewer resolution and audit trail.
+7. Measured metrics and the AMD-powered inference architecture (claimed as AMD only when actually run on AMD).
+
+Step-by-step script: `docs/DEMO_WALKTHROUGH.md`.
+
+---
+
+## 13. Future Roadmap
+
+- **Phase 2:** Voice interface for low-literacy patients; appointment preparation; patient intake; caregiver handoff; further regional languages beyond the six shipped in the MVP.
+- **Phase 3:** Healthcare staff dashboard and workflow automation; advanced document conflict detection; hospital EHR integration via FHIR / HL7; automated post-discharge SMS reminders.
+- **Phase 4:** Local/private inference, including edge inference on clinic workstation AMD Ryzen AI NPUs for zero-cloud data isolation; enterprise hospital deployment.
+
+**Long-term vision:** CARELYNX becomes a patient-journey intelligence layer that helps people understand healthcare information without pretending to replace the professionals responsible for clinical decisions.
