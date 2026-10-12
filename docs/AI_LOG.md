@@ -13,6 +13,34 @@
 ```text
 commit (uncommitted — branch fix/audit-pending-work)
 Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
+Date:   2026-10-12 20:30:00 +0530
+
+    feat(infra): deploy-anywhere Docker stack with Caddy proxy and AMD/NVIDIA LLM profiles
+
+    - Context / Problem addressed:
+      The web image baked http://localhost:8000 into the bundle (broken on any remote host), the LLM
+      lived only in a separate compose file, and the web image shipped full node_modules.
+    - Architectural decisions & changes made:
+      1. infra/docker/Caddyfile + `proxy` service: single public origin; /api/* -> api, rest -> web;
+         SITE_ADDRESS=<domain> enables automatic HTTPS. Web builds with relative /api/v1.
+      2. docker-compose.yml: healthchecks, restart policies, internal-only api/web/db, registry image
+         names, opt-in `amd` (rocm/vllm) and `nvidia` (vllm/vllm-openai) profiles aliased `llm`.
+         DOCKER_* variables keep local-dev localhost URLs in .env out of containers.
+      3. apps/web/Dockerfile: multi-stage Next.js standalone build (NEXT_OUTPUT=standalone only in
+         Docker; local dev/build unchanged). apps/api/Dockerfile: uvicorn --proxy-headers.
+      4. .env.example: appended a Docker deployment block (no existing lines changed). README §7 rewritten.
+         infra/amd compose files kept as-is.
+    - Verification & testing performed:
+      - `docker compose config` valid for default, --profile amd, --profile nvidia.
+      - Built images (api 495 MB, web 334 MB); full stack healthy; Chrome via LAN IP (not localhost):
+        upload -> process on Postgres -> care plan, 6-language badges, Read Aloud, /review — no JS errors.
+      - 12 MB upload through the proxy -> 400 UPLOAD_ERROR. Test stack, volumes and images removed.
+      - Not run: the GPU profiles (no AMD/NVIDIA GPU here) and automatic HTTPS (needs a public domain).
+    - Alignment check:
+      No stack or scope change; AMD path documented truthfully (no AMD run claimed).
+
+commit (uncommitted — branch fix/audit-pending-work)
+Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
 Date:   2026-10-12 19:00:00 +0530
 
     fix(all): remediate requirements audit across Member 1/2/3 and ship six-language care plan

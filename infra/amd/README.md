@@ -1,5 +1,8 @@
 # CARELYNX on AMD (ROCm + vLLM)
 
+> To run the whole app (proxy, web, API, Postgres) together with this vLLM server in one stack, use
+> `docker compose --profile amd up -d --build` from the repo root (README §7.2).
+
 CARELYNX talks to any OpenAI-compatible `/v1/chat/completions` endpoint through `OpenAICompatibleProvider`
 (`apps/api/app/ai/openai_compatible.py`). On AMD hardware that endpoint is **vLLM running on ROCm**.
 

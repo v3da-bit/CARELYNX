@@ -1,0 +1,20 @@
+# Single public entrypoint: the browser talks to one origin, so the web bundle can call the API at
+# the relative path /api/v1 and the same image works on localhost, a LAN IP or a domain.
+#   SITE_ADDRESS=:80 (default, set by docker-compose.yml) -> plain HTTP; host port = HTTP_PORT
+#   SITE_ADDRESS=example.com  -> automatic HTTPS via Let's Encrypt (DNS + ports 80/443 must reach this host)
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# 10 MB upload limit (MAX_UPLOAD_MB) + multipart overhead; the API enforces the exact limit.
+	request_body {
+		max_size 11MB
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

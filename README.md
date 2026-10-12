@@ -156,10 +156,13 @@ CARELYNX runs out-of-the-box on **Windows**, **macOS**, and **Linux** with autom
 git clone <repo-url>
 cd CARELYNX
 
-# 2. Automated setup (creates venv, installs Python & Node packages, runs DB migrations, generates sample PDFs)
+# 2. Create your local config (never commit .env)
+cp .env.example .env          # Windows: copy .env.example .env
+
+# 3. Automated setup (creates venv, installs Python & Node packages, runs DB migrations, generates sample PDFs)
 python run.py setup
 
-# 3. Start both backend (FastAPI) and frontend (Next.js) concurrently
+# 4. Start both backend (FastAPI) and frontend (Next.js) concurrently
 python run.py dev
 ```
 
@@ -196,6 +199,12 @@ python run.py generate-samples # Generate sample discharge PDFs
 
 If you prefer running services manually in separate terminals:
 
+#### 0. Configuration
+```bash
+cp .env.example .env          # Windows: copy .env.example .env
+```
+Defaults work as-is (SQLite, `rule_based` extraction). Optionally set `GOOGLE_TRANSLATE_API_KEY` for reliable Hindi/Gujarati/Marathi/Tamil/Telugu translation.
+
 #### 1. Backend (FastAPI)
 ```bash
 cd apps/api
@@ -226,21 +235,58 @@ Open your browser to:
 
 ---
 
-## 7. AMD ROCm Hardware Deployment
+## 7. Deployment with Docker (any host)
 
-CARELYNX includes native support for AMD-accelerated inference:
-1. Start an OpenAI-compatible vLLM server on an AMD ROCm system:
-   ```bash
-   docker compose -f infra/amd/docker-compose.rocm.yml up -d
-   ```
-2. Configure `.env`:
-   ```env
-   INFERENCE_PROVIDER=openai_compat
-   INFERENCE_BASE_URL=http://localhost:8080/v1
-   INFERENCE_MODEL=Qwen/Qwen2.5-7B-Instruct
-   INFERENCE_HARDWARE_LABEL=amd-rocm-vllm
-   ```
-3. Restart the API server, then benchmark with `python infra/amd/benchmark_rocm.py` (see [`infra/amd/README.md`](infra/amd/README.md)). It labels results "AMD" only when `rocm-smi`/`amd-smi` detect an AMD GPU. **No AMD run has been recorded yet** — the numbers measured so far are the CPU rule-based baseline.
+One `docker-compose.yml` runs the whole stack on any machine with Docker: a laptop, a VM, a cloud server or an AMD GPU box.
+
+```text
+browser ──▶ proxy (Caddy :80/:443) ──┬── /api/*  ──▶ api (FastAPI) ──▶ db (Postgres 16)
+                                     │                    └──▶ llm (vLLM, optional GPU profile)
+                                     └── /*      ──▶ web (Next.js standalone)
+```
+
+Only the proxy is published. The web app calls the API at the relative path `/api/v1`, so the same images work on `localhost`, a LAN IP or a domain without rebuilding.
+
+### 7.1 Run it
+
+```bash
+cp .env.example .env          # then edit: POSTGRES_PASSWORD (required for anything public), optional keys
+docker compose up -d --build  # proxy + web + api + postgres, rule_based extraction (no GPU needed)
+```
+
+Open `http://<host>` (or `http://<host>:HTTP_PORT` if you changed `HTTP_PORT`). Database migrations run automatically when the API container starts. Uploaded documents and the database live in the `docstore` and `pgdata` volumes.
+
+| Setting (`.env`) | Purpose |
+|---|---|
+| `SITE_ADDRESS` | Empty → plain HTTP. A domain (e.g. `carelynx.example.com`) → automatic HTTPS via Let's Encrypt; its DNS must point at the host and ports 80/443 must be open. |
+| `HTTP_PORT` / `HTTPS_PORT` | Host ports for the proxy (default 80 / 443). |
+| `POSTGRES_PASSWORD` | Change it before exposing the host. |
+| `GOOGLE_TRANSLATE_API_KEY` | Reliable Hindi/Gujarati/Marathi/Tamil/Telugu translation (see §6). |
+| `REGISTRY` / `TAG` | Image names, for `docker compose build && docker compose push` to your registry; the target host then only needs `docker compose pull && docker compose up -d`. |
+
+### 7.2 Add the LLM (GPU)
+
+The `llm` service is opt-in through a profile. It serves `Qwen/Qwen2.5-7B-Instruct` with vLLM, which needs a GPU with about 24 GB of memory or more.
+
+| Host | Command | `.env` |
+|---|---|---|
+| AMD GPU (ROCm, Linux, `/dev/kfd` + `/dev/dri`) | `docker compose --profile amd up -d --build` | `INFERENCE_PROVIDER=openai_compat`, `INFERENCE_HARDWARE_LABEL=amd-rocm-vllm` |
+| NVIDIA GPU (NVIDIA Container Toolkit) | `docker compose --profile nvidia up -d --build` | `INFERENCE_PROVIDER=openai_compat`, `INFERENCE_HARDWARE_LABEL=nvidia-cuda-vllm` |
+| No GPU | `docker compose up -d --build` | leave `INFERENCE_PROVIDER=rule_based` |
+
+- The first start downloads about 15 GB of model weights into the `hf_cache` volume, so the LLM takes a while to become healthy.
+- Until then, and whenever the LLM is unreachable, the API falls back to `rule_based` and records that provenance honestly on each fact.
+- Benchmark on the GPU host with `python infra/amd/benchmark_rocm.py` (see [`infra/amd/README.md`](infra/amd/README.md)). It labels results "AMD" only when `rocm-smi`/`amd-smi` detect an AMD GPU. **No AMD run has been recorded yet**; the numbers measured so far are the CPU rule-based baseline.
+- To run vLLM on a separate GPU machine instead, start it there with `docker compose -f infra/amd/docker-compose.rocm.yml up -d` and set `DOCKER_INFERENCE_BASE_URL=http://<gpu-host>:8080/v1` on the app host.
+
+### 7.3 Operate
+
+```bash
+docker compose ps                 # health of every service
+docker compose logs -f api        # follow API logs
+docker compose up -d --build      # deploy a new version (migrations run on start)
+docker compose down               # stop (volumes, i.e. data, are kept)
+```
 
 ---
 

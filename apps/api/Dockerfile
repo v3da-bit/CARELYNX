@@ -22,4 +22,5 @@ RUN useradd --system --uid 10001 carelynx \
 USER carelynx
 
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# --proxy-headers: client IP/scheme come from the Caddy proxy. Workers: set WEB_CONCURRENCY (uvicorn reads it).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"]
