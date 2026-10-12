@@ -45,6 +45,13 @@ Date:   2026-10-12 19:00:00 +0530
       5. Files removed during the audit (ryzen-ai.py, benchmark_inference.py, infra/amd/docker-compose.yml,
          qa_probe.py, qa_test_suite.py, test_translator.py, scripts/evaluate.py, scripts/setup_mock_demo.py)
          were restored at the team's request.
+      6. Browser-verified follow-ups (Chrome, all 6 languages): Read Aloud now sets the BCP-47 language,
+         picks a matching voice (or says none is installed) and translates its intro; fixed an effect loop
+         where `/?action=demo` re-uploaded the sample endlessly. Free translation endpoints were
+         rate-limited during testing; the team chose a Google Cloud Translation API key (GOOGLE_TRANSLATE_API_KEY).
+      7. Fixed the restored apps/api/scripts/evaluate.py with the minimal change: the non-existent
+         create_document/process_document calls now use upload_document + pipeline.run_document. Behaviour
+         is otherwise unchanged (reads tests/data/, "dummy pass" when empty, uses the configured DB).
     - Files created / modified: see `git diff --stat` on branch fix/audit-pending-work.
     - Verification & testing performed:
       - apps/api: pytest 121 passed (SQLite; also 121 passed on Postgres 16 container).

@@ -49,6 +49,8 @@ function HomeContent() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
+  const handledActionRef = useRef<string | null>(null);
+
   // Common upload pipeline
   const uploadAndProcessFile = useCallback(async (file: File) => {
     try {
@@ -133,9 +135,14 @@ function HomeContent() {
     window.addEventListener("carelynx:careplan", handleCarePlanEvent);
     window.addEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
 
-    // Check URL params
+    // Check URL params — once per action: this effect re-runs on every case update, and re-running
+    // "demo" would upload the sample again in a loop.
     const action = searchParams.get("action");
-    if (action === "upload") {
+    const isNewAction = action !== handledActionRef.current;
+    handledActionRef.current = action;
+    if (!isNewAction) {
+      // already handled
+    } else if (action === "upload") {
       if (hasSessionUploadConsent) {
         setTimeout(() => fileInputRef.current?.click(), 200);
       } else {
@@ -736,8 +743,18 @@ function HomeContent() {
               {/* Voice Accessibility (Phase 2) */}
               <button
                 onClick={() => {
-                  const speech = new SpeechSynthesisUtterance("Reading your care plan. " + facts.filter(f => f.status === "VERIFIED").map(f => getFactTitle(f)).join(". "));
-                  window.speechSynthesis.speak(speech);
+                  const synth = window.speechSynthesis;
+                  synth.cancel(); // a second click restarts instead of queueing
+                  const bcp47 = SPEECH_LANG[language];
+                  const voice = synth.getVoices().find(v => v.lang.replace("_", "-").toLowerCase().startsWith(bcp47.split("-")[0]));
+                  if (!voice && language !== "en") {
+                    alert(`Your browser has no ${bcp47} voice installed, so it cannot read this language aloud.`);
+                    return;
+                  }
+                  const speech = new SpeechSynthesisUtterance(READ_ALOUD_INTRO[language] + " " + facts.filter(f => f.status === "VERIFIED").map(f => getFactTitle(f)).join(". "));
+                  speech.lang = bcp47;
+                  if (voice) speech.voice = voice;
+                  synth.speak(speech);
                 }}
                 className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
                 title="Read Aloud (Voice Accessibility)"
@@ -1260,3 +1277,14 @@ function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
     </span>
   );
 }
+
+const SPEECH_LANG: Record<Lang, string> = { en: "en-IN", hi: "hi-IN", gu: "gu-IN", mr: "mr-IN", ta: "ta-IN", te: "te-IN" };
+
+const READ_ALOUD_INTRO: Record<Lang, string> = {
+  en: "Reading your care plan.",
+  hi: "आपकी देखभाल योजना पढ़ी जा रही है।",
+  gu: "તમારી સંભાળ યોજના વાંચવામાં આવી રહી છે.",
+  mr: "तुमची काळजी योजना वाचली जात आहे.",
+  ta: "உங்கள் பராமரிப்பு திட்டம் வாசிக்கப்படுகிறது.",
+  te: "మీ సంరక్షణ ప్రణాళిక చదవబడుతోంది.",
+};
