@@ -15,14 +15,20 @@ logger = logging.getLogger("carelynx")
 
 
 class ErrorCode(StrEnum):
+    """API_CONTRACTS.md §1.2. OCR_ERROR / PARSING_ERROR are also stored on documents as `error_code`."""
+
+    UPLOAD_ERROR = "UPLOAD_ERROR"
     VALIDATION_ERROR = "VALIDATION_ERROR"
     NOT_FOUND = "NOT_FOUND"
+    AUTH_ERROR = "AUTH_ERROR"
     FORBIDDEN = "FORBIDDEN"
-    UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
-    FILE_TOO_LARGE = "FILE_TOO_LARGE"
     INVALID_STATE = "INVALID_STATE"
+    CONFLICT_ERROR = "CONFLICT_ERROR"
     REVIEW_REQUIRED = "REVIEW_REQUIRED"
-    PROCESSING_FAILED = "PROCESSING_FAILED"
+    OCR_ERROR = "OCR_ERROR"
+    PARSING_ERROR = "PARSING_ERROR"
+    MODEL_ERROR = "MODEL_ERROR"
+    EVIDENCE_ERROR = "EVIDENCE_ERROR"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
@@ -43,13 +49,24 @@ def _body(code: str, message: str, request: Request) -> dict[str, dict[str, str]
     return {"error": {"code": code, "message": message, "request_id": _request_id(request)}}
 
 
-_HTTP_CODE_MAP = {404: ErrorCode.NOT_FOUND, 403: ErrorCode.FORBIDDEN, 401: ErrorCode.FORBIDDEN}
+def error_response(request: Request, code: ErrorCode, message: str, status_code: int) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content=_body(code, message, request))
+
+
+_HTTP_CODE_MAP = {
+    400: ErrorCode.UPLOAD_ERROR,
+    401: ErrorCode.AUTH_ERROR,
+    403: ErrorCode.FORBIDDEN,
+    404: ErrorCode.NOT_FOUND,
+    409: ErrorCode.INVALID_STATE,
+    413: ErrorCode.UPLOAD_ERROR,
+}
 
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content=_body(exc.code, exc.message, request))
+        return error_response(request, exc.code, exc.message, exc.status_code)
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -62,12 +79,14 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _HTTP_CODE_MAP.get(exc.status_code, ErrorCode.VALIDATION_ERROR)
-        return JSONResponse(status_code=exc.status_code, content=_body(code, str(exc.detail), request))
+        return error_response(request, code, str(exc.detail), exc.status_code)
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        from app.core.security import SECURITY_HEADERS  # local import: security imports this module
+
         logger.exception("Unhandled error request_id=%s", _request_id(request))
-        return JSONResponse(
-            status_code=500,
-            content=_body(ErrorCode.INTERNAL_ERROR, "An internal error occurred.", request),
-        )
+        # Runs outside the security middleware (ServerErrorMiddleware), so add its headers here.
+        resp = error_response(request, ErrorCode.INTERNAL_ERROR, "An internal error occurred.", 500)
+        resp.headers.update({**SECURITY_HEADERS, "X-Request-ID": _request_id(request)})
+        return resp

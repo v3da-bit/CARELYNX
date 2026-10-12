@@ -1,187 +1,184 @@
+"""translate_texts: masking, verification, engine order. No network — every engine is mocked."""
+
+from __future__ import annotations
+
 import asyncio
 import json
-import uuid
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from sqlalchemy.orm import Session
+from unittest.mock import patch
 
-from app.models.entities import Patient, Case, Fact
-from app.models.enums import FactType, FactStatus
-from app.services.translation import (
-    GOOGLE_TRANSLATE_API_URL,
-    SUPPORTED_LANGUAGES,
-    translate_with_google_v2,
-    translate_facts,
-    auto_translate_on_summary_created,
-    clear_translation_cache,
-)
+import httpx
+import pytest
+
+from app.models.enums import Language
+from app.services import translation
+from app.services.translation import mask, translate_texts, unmask
+
+SRC = "Aspirin 75 mg once daily after lunch from 14 Oct 2026 at 10:30 AM, call 022-2345-6789"
 
 
 @pytest.fixture(autouse=True)
-def reset_cache():
-    clear_translation_cache()
+def _clean_cache():
+    translation._CACHE.clear()
     yield
-    clear_translation_cache()
+    translation._CACHE.clear()
 
 
-def test_supported_languages():
-    expected = {"en", "hi", "gu", "mr", "ta", "te"}
-    assert set(SUPPORTED_LANGUAGES.keys()) == expected
+def _fake_engine(fn, calls=None):
+    """An engine that 'translates' masked text with `fn` (and records calls)."""
+
+    async def engine(texts, lang):
+        if calls is not None:
+            calls.append(list(texts))
+        return [fn(t) for t in texts]
+
+    return engine
 
 
-def test_translate_with_google_v2_success():
-    texts = ["Avoid heavy lifting", "Patient's follow-up", "Take with food"]
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "data": {
-            "translations": [
-                {"translatedText": "वजनदार चीजें उठाने से बचें"},
-                {"translatedText": "Patient&#39;s फॉलो-अप"},  # Test HTML unescape
-                {"translatedText": "भोजन के साथ लें"},
-            ]
-        }
-    }
+def _hindi(t: str) -> str:
+    return "अनुवाद: " + t  # keeps every placeholder intact
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-        mock_post.return_value = mock_response
 
-        results = asyncio.run(
-            translate_with_google_v2(
-                texts=texts,
-                target_lang="hi",
-                api_key="test-api-key-12345",
-            )
+def _run(texts, lang, engines, protected=()):
+    with patch.object(translation, "_engines", lambda: engines):
+        return asyncio.run(translate_texts(texts, lang, protected_terms=protected))
+
+
+def test_mask_round_trip_protects_drugs_doses_dates_times_phones_numbers() -> None:
+    masked, mapping = mask(SRC, ["Aspirin"])
+    for protected in ("Aspirin", "75 mg", "14 Oct 2026", "10:30 AM", "022-2345-6789"):
+        assert protected not in masked
+        assert protected in mapping.values()
+    assert not any(ch.isdigit() for ch in masked)
+    assert unmask(masked, SRC, mapping) == SRC
+
+
+@pytest.mark.parametrize(
+    "src", ["Take 500mg twice", "Dose 10 ml", "Review on 14/10/2026", "Next visit 2026-10-14", "Oct 14, 2026"]
+)
+def test_mask_formats(src: str) -> None:
+    masked, mapping = mask(src)
+    assert not any(ch.isdigit() for ch in masked)
+    assert unmask(masked, src, mapping) == src
+
+
+def test_dropped_or_duplicated_placeholder_is_rejected() -> None:
+    masked, mapping = mask(SRC, ["Aspirin"])
+    first = next(iter(mapping))
+    assert unmask(masked.replace(first, ""), SRC, mapping) is None
+    assert unmask(masked + " " + first, SRC, mapping) is None
+
+
+def test_altered_or_added_number_is_rejected() -> None:
+    masked, mapping = mask("Take 1 tablet for 5 days")
+    assert unmask(masked + " 2", "Take 1 tablet for 5 days", mapping) is None
+    assert unmask(masked + " ३", "Take 1 tablet for 5 days", mapping) is None  # Devanagari digit counts
+
+
+def test_abstention_is_rejected() -> None:
+    assert unmask("UNTRANSLATABLE", "Rest at home", {}) is None
+
+
+def test_english_passthrough_never_calls_an_engine() -> None:
+    calls: list = []
+    out = _run(["Rest at home", "x"], Language.EN, [("e", _fake_engine(_hindi, calls))])
+    assert out == ["Rest at home", "x"] and calls == []
+
+
+@pytest.mark.parametrize("lang", [Language.HI, Language.GU, Language.MR, Language.TA, Language.TE])
+def test_all_supported_languages_translate(lang: Language) -> None:
+    out = _run([SRC], lang, [("e", _fake_engine(_hindi))], protected=["Aspirin"])
+    assert out == ["अनुवाद: " + SRC]
+
+
+def test_engine_fallback_order_and_per_item_retry() -> None:
+    first_calls: list = []
+    second_calls: list = []
+
+    def drop_numbers_in_second(t: str) -> str:  # first engine corrupts item 2 only
+        return t.replace(next(iter(mask("Take 2 tablets")[1])), "") if t.startswith("Take") else _hindi(t)
+
+    out = _run(
+        ["Rest at home", "Take 2 tablets"],
+        Language.HI,
+        [
+            ("first", _fake_engine(drop_numbers_in_second, first_calls)),
+            ("second", _fake_engine(_hindi, second_calls)),
+        ],
+    )
+    assert out == ["अनुवाद: Rest at home", "अनुवाद: Take 2 tablets"]
+    assert len(first_calls[0]) == 2 and len(second_calls[0]) == 1  # only the rejected item retried
+
+
+def test_engine_exceptions_and_timeouts_never_raise() -> None:
+    async def boom(texts, lang):
+        raise httpx.ConnectError("offline")
+
+    async def slow(texts, lang):
+        await asyncio.sleep(5)
+        return texts
+
+    with patch.object(translation, "TOTAL_TIMEOUT_S", 0.2):
+        out = _run(["Rest at home"], Language.GU, [("boom", boom), ("slow", slow)])
+    assert out == [None]
+
+
+def test_results_are_cached_per_text_lang_and_terms() -> None:
+    calls: list = []
+    engines = [("e", _fake_engine(_hindi, calls))]
+    _run(["Rest at home"], Language.HI, engines)
+    _run(["Rest at home"], Language.HI, engines)
+    _run(["Rest at home"], Language.GU, engines)
+    assert len(calls) == 2
+
+
+def test_engine_selection_follows_configuration() -> None:
+    class S:
+        google_translate_api_key = ""
+        inference_provider = "rule_based"
+
+    with patch.object(translation, "get_settings", lambda: S):
+        assert [n for n, _ in translation._engines()] == ["deep_translator", "mymemory"]
+        S.google_translate_api_key, S.inference_provider = "k", "openai_compat"
+        assert [n for n, _ in translation._engines()] == ["google_v2", "llm", "deep_translator", "mymemory"]
+
+
+def test_google_v2_sends_key_in_header_not_url() -> None:
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"], seen["key"] = str(request.url), request.headers.get("X-goog-api-key")
+        body = json.loads(request.content)
+        return httpx.Response(
+            200, json={"data": {"translations": [{"translatedText": _hindi(q)} for q in body["q"]]}}
         )
 
-        mock_post.assert_called_once()
-        call_args, call_kwargs = mock_post.call_args
-        assert GOOGLE_TRANSLATE_API_URL in call_args[0]
-        assert call_kwargs["json"]["q"] == texts
-        assert call_kwargs["json"]["target"] == "hi"
-        assert call_kwargs["json"]["source"] == "en"
-        assert call_kwargs["json"]["format"] == "text"
+    real_client = httpx.AsyncClient
 
-        assert results[0] == "वजनदार चीजें उठाने से बचें"
-        # Verify HTML entity decoding: &#39; -> '
-        assert results[1] == "Patient's फॉलो-अप"
-        assert results[2] == "भोजन के साथ लें"
+    class S:
+        google_translate_api_key = "secret-key"
 
-
-def test_translate_with_google_v2_missing_key():
-    with patch("app.services.translation.get_settings") as mock_settings:
-        mock_settings.return_value.google_translate_api_key = ""
-        with patch.dict("os.environ", {"GOOGLE_TRANSLATE_API_KEY": ""}, clear=False):
-            with pytest.raises(ValueError, match="Google Translate API key not configured"):
-                asyncio.run(translate_with_google_v2(["Hello"], target_lang="hi", api_key=""))
+    with (
+        patch.object(translation, "get_settings", lambda: S),
+        patch.object(
+            translation.httpx,
+            "AsyncClient",
+            lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+        ),
+    ):
+        out = asyncio.run(translation._google_v2(["a &amp; b"], Language.HI))
+    assert seen["key"] == "secret-key" and "secret-key" not in seen["url"]
+    assert out == ["अनुवाद: a & b"]
 
 
-def test_translate_facts_english_direct(db: Session):
-    patient = Patient(id=uuid.uuid4())
-    db.add(patient)
-    db.flush()
-    case_id = uuid.uuid4()
-    c = Case(id=case_id, patient_id=patient.id)
-    db.add(c)
-    db.flush()
+def test_llm_engine_uses_versioned_prompt() -> None:
+    seen: dict = {}
 
-    fact = Fact(
-        case_id=case_id,
-        fact_type=FactType.MEDICATION,
-        value={"name": "Aspirin", "dose": "81mg", "instruction": "Take with food"},
-        status=FactStatus.VERIFIED,
-    )
-    db.add(fact)
-    db.commit()
+    class FakeProvider:
+        async def generate_text(self, system_prompt: str, user_prompt: str) -> str:
+            seen["system"] = system_prompt
+            return _hindi(user_prompt)
 
-    res = asyncio.run(translate_facts(db, str(case_id), "en"))
-    assert res["language"] == "en"
-    assert len(res["facts"]) == 1
-    assert res["facts"][0]["translated_value"]["name"] == "Aspirin"
-    assert res["facts"][0]["translated_value"]["dose"] == "81mg"
-
-
-def test_translate_facts_with_google_v2_and_cache(db: Session):
-    patient = Patient(id=uuid.uuid4())
-    db.add(patient)
-    db.flush()
-    case_id = uuid.uuid4()
-    c = Case(id=case_id, patient_id=patient.id)
-    db.add(c)
-    db.flush()
-
-    fact1 = Fact(
-        case_id=case_id,
-        fact_type=FactType.INSTRUCTION,
-        value={"instruction": "Avoid heavy lifting", "raw_text": "Avoid heavy lifting"},
-        status=FactStatus.VERIFIED,
-    )
-    fact2 = Fact(
-        case_id=case_id,
-        fact_type=FactType.FOLLOW_UP,
-        value={"department": "Cardiology", "date": "2026-10-14"},
-        status=FactStatus.VERIFIED,
-    )
-    db.add_all([fact1, fact2])
-    db.commit()
-
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "data": {
-            "translations": [
-                {"translatedText": "वजनदार चीजें उठाने से बचें"},
-                {"translatedText": "वजनदार चीजें उठाने से बचें"},
-                {"translatedText": "कार्डियोलॉजी"},
-            ]
-        }
-    }
-
-    with patch("app.services.translation.get_settings") as mock_settings:
-        mock_settings.return_value.google_translate_api_key = "AIzaSyFakeKey123"
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = mock_response
-
-            # First call uses Google Translate v2
-            res1 = asyncio.run(translate_facts(db, str(case_id), "hi"))
-            assert res1["language"] == "hi"
-            assert res1.get("provider") == "google_translate_v2"
-            assert len(res1["facts"]) == 2
-
-            # Find translated care plan and follow up
-            care_fact = next(f for f in res1["facts"] if f["id"] == str(fact1.id))
-            assert care_fact["translated_value"]["instruction"] == "वजनदार चीजें उठाने से बचें"
-
-            follow_fact = next(f for f in res1["facts"] if f["id"] == str(fact2.id))
-            assert follow_fact["translated_value"]["department"] == "कार्डियोलॉजी"
-            assert follow_fact["translated_value"]["date"] == "2026-10-14"  # Preserved verbatim!
-
-            # Second call should hit memory cache without re-POSTing
-            res2 = asyncio.run(translate_facts(db, str(case_id), "hi"))
-            assert res2 == res1
-            assert mock_post.call_count == 1
-
-
-def test_auto_translate_on_summary_created(db: Session):
-    patient = Patient(id=uuid.uuid4())
-    db.add(patient)
-    db.flush()
-    case_id = uuid.uuid4()
-    c = Case(id=case_id, patient_id=patient.id)
-    db.add(c)
-    db.flush()
-
-    fact = Fact(
-        case_id=case_id,
-        fact_type=FactType.INSTRUCTION,
-        value={"instruction": "Drink plenty of water"},
-        status=FactStatus.VERIFIED,
-    )
-    db.add(fact)
-    db.commit()
-
-    with patch("app.services.translation.get_settings") as mock_settings:
-        mock_settings.return_value.google_translate_api_key = "AIzaSyFakeKey123"
-        with patch("app.services.translation.translate_facts", new_callable=AsyncMock) as mock_translate:
-            asyncio.run(auto_translate_on_summary_created(db, str(case_id), ["hi", "gu", "mr", "ta", "te"]))
-            assert mock_translate.call_count == 5
+    with patch.object(translation, "get_inference_provider", lambda: FakeProvider()):
+        out = asyncio.run(translation._llm(["Rest"], Language.TA))
+    assert out == ["अनुवाद: Rest"]
+    assert "Tamil" in seen["system"] and "Never change certainty" in seen["system"]

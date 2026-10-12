@@ -4,10 +4,10 @@ import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { 
   getHealth, createCase, uploadDocument, processDocument, getCase, getCaseFacts, getFactEvidence, translateCase, API_BASE,
-  type Health, type CaseOut, type FactResponse, type EvidenceResponse
+  type Health, type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedText
 } from "@/lib/api";
 import { 
-  FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, CheckCircle2, 
+  FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
   ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock
 } from "lucide-react";
@@ -24,7 +24,7 @@ function HomeContent() {
   // Translation state
   const [language, setLanguage] = useState<"en" | "hi" | "gu" | "mr" | "ta" | "te">("en");
   const [isTranslating, setIsTranslating] = useState(false);
-  const [translations, setTranslations] = useState<Record<string, Record<string, unknown>>>({});
+  const [translations, setTranslations] = useState<Record<string, TranslatedText>>({});
   
   // Evidence popup state
   const [selectedFact, setSelectedFact] = useState<FactResponse | null>(null);
@@ -190,12 +190,7 @@ function HomeContent() {
           if (language !== "en") {
             setIsTranslating(true);
             try {
-              const res = await translateCase(c.id, language);
-              const newMap: Record<string, Record<string, unknown>> = {};
-              res.facts.forEach(t => {
-                newMap[t.id] = t.translated_value;
-              });
-              setTranslations(newMap);
+              setTranslations(await translateCase(c.id, language));
             } catch (err) {
               console.error("Auto-translation on summary creation failed:", err);
             } finally {
@@ -225,12 +220,7 @@ function HomeContent() {
     
     setIsTranslating(true);
     try {
-      const res = await translateCase(activeCase.id, targetLang);
-      const newMap: Record<string, Record<string, unknown>> = {};
-      res.facts.forEach(t => {
-        newMap[t.id] = t.translated_value;
-      });
-      setTranslations(newMap);
+      setTranslations(await translateCase(activeCase.id, targetLang));
       setLanguage(targetLang);
     } catch (err) {
       console.error(err);
@@ -295,7 +285,9 @@ function HomeContent() {
   };
 
   const getFactTitle = (fact: FactResponse): string => {
-    const val = (language === "en" || !translations[fact.id] ? fact.value : translations[fact.id]) || {};
+    const tr = language !== "en" ? translations[fact.id] : undefined;
+    if (tr) return [tr.title, tr.subtitle, tr.date].filter(Boolean).join(" — ");
+    const val = fact.value || {};
     const sanitize = (s: string) => s.replace(/^["'“”„\s:.-]+|["'“”„\s:.-]+$/g, "").trim();
 
     switch (fact.fact_type) {
@@ -680,7 +672,7 @@ function HomeContent() {
               </div>
               <h2 className="text-2xl font-bold text-slate-900">Your Discharge Care Plan</h2>
               <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                Encounter verified across {activeCase.documents.length} document{activeCase.documents.length === 1 ? '' : 's'}.
+                Extracted from {activeCase.documents.length} document{activeCase.documents.length === 1 ? '' : 's'}. Items marked for review are not yet confirmed.
               </p>
             </div>
 
@@ -744,7 +736,7 @@ function HomeContent() {
               {/* Voice Accessibility (Phase 2) */}
               <button
                 onClick={() => {
-                  const speech = new SpeechSynthesisUtterance("Reading your care plan. " + facts.map(f => getFactTitle(f)).join(". "));
+                  const speech = new SpeechSynthesisUtterance("Reading your care plan. " + facts.filter(f => f.status === "VERIFIED").map(f => getFactTitle(f)).join(". "));
                   window.speechSynthesis.speak(speech);
                 }}
                 className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
@@ -845,7 +837,7 @@ function HomeContent() {
                           <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                         </div>
                         <div className="flex items-center justify-between text-[11px] text-rose-600 pt-2 border-t border-rose-100">
-                          <span className="font-mono">100% Grounded</span>
+                          <StatusBadge status={f.status} lang={language} />
                           <span className="font-semibold underline decoration-rose-300">View Source Proof →</span>
                         </div>
                       </div>
@@ -895,15 +887,7 @@ function HomeContent() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {f.status === "CONFLICT_DETECTED" ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                              Discrepancy
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                              Verified
-                            </span>
-                          )}
+                          <StatusBadge status={f.status} lang={language} />
                           <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                         </div>
                       </div>
@@ -929,7 +913,8 @@ function HomeContent() {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {medications.map(f => {
-                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
+                      const val = f.value || {};
+                      const tr = language !== "en" ? translations[f.id] : undefined;
                       return (
                         <div 
                           key={f.id} 
@@ -945,13 +930,18 @@ function HomeContent() {
                               <Pill className="w-3.5 h-3.5 text-brand" />
                               {String(val.name || getFactTitle(f))}
                             </span>
-                            <span className="text-[11px] font-mono font-semibold text-emerald-800 px-2.5 py-0.5 rounded-full bg-emerald-100">
-                              {String(val.strength || "Standard Dose")}
+                            <span className="flex items-center gap-1.5">
+                              {Boolean(val.strength) && (
+                                <span className="text-[11px] font-mono font-semibold text-emerald-800 px-2.5 py-0.5 rounded-full bg-emerald-100">
+                                  {String(val.strength)}
+                                </span>
+                              )}
+                              <StatusBadge status={f.status} lang={language} />
                             </span>
                           </div>
 
                           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                            <span>Instructions: {String(val.frequency || "See hospital prescription")}</span>
+                            <span>{tr?.subtitle || (val.frequency ? `Instructions: ${String(val.frequency)}` : "")}</span>
                             <span className="font-semibold text-brand underline decoration-emerald-200 group-hover:decoration-brand">Proof →</span>
                           </div>
                         </div>
@@ -990,7 +980,7 @@ function HomeContent() {
                           <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                         </div>
                         <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-                          <span className="text-brand font-mono font-semibold">100% Verbatim Linked</span>
+                          <StatusBadge status={f.status} lang={language} />
                           <span className="font-semibold text-brand underline decoration-emerald-200">View Proof →</span>
                         </div>
                       </div>
@@ -1047,18 +1037,7 @@ function HomeContent() {
 
                 {/* Status Badge */}
                 <div className="mt-2.5 flex items-center gap-2">
-                  {selectedFact.status === "VERIFIED" && (
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-300 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                      100% Verbatim Grounded in Source Text
-                    </span>
-                  )}
-                  {selectedFact.status === "CONFLICT_DETECTED" && (
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-950 border border-rose-300 flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-700" />
-                      Document Discrepancy (Sent to Clinical Review)
-                    </span>
-                  )}
+                  <StatusBadge status={selectedFact.status} lang={language} />
                 </div>
 
                 {selectedFact.status_reasons && selectedFact.status_reasons.length > 0 && (
@@ -1253,5 +1232,31 @@ export default function Home() {
     }>
       <HomeContent />
     </Suspense>
+  );
+}
+
+type Lang = "en" | "hi" | "gu" | "mr" | "ta" | "te";
+
+// Status wording must never read as more certain than the backend status (SAFETY.md §5).
+const STATUS_LABELS: Record<string, Record<Lang, string>> = {
+  VERIFIED: { en: "✓ Verified", hi: "✓ सत्यापित", gu: "✓ ચકાસાયેલ", mr: "✓ पडताळलेले", ta: "✓ சரிபார்க்கப்பட்டது", te: "✓ ధృవీకరించబడింది" },
+  NEEDS_REVIEW: { en: "⚠ Needs review", hi: "⚠ समीक्षा आवश्यक", gu: "⚠ સમીક્ષા જરૂરી", mr: "⚠ पुनरावलोकन आवश्यक", ta: "⚠ மதிப்பாய்வு தேவை", te: "⚠ సమీక్ష అవసరం" },
+  HUMAN_REQUIRED: { en: "🔴 Human review required", hi: "🔴 मानव समीक्षा आवश्यक", gu: "🔴 માનવ સમીક્ષા જરૂરી", mr: "🔴 मानवी पुनरावलोकन आवश्यक", ta: "🔴 மனித மதிப்பாய்வு தேவை", te: "🔴 మానవ సమీక్ష అవసరం" },
+  CONFLICT_DETECTED: { en: "🔴 Conflict — human review required", hi: "🔴 विरोधाभास — मानव समीक्षा आवश्यक", gu: "🔴 વિરોધાભાસ — માનવ સમીક્ષા જરૂરી", mr: "🔴 विसंगती — मानवी पुनरावलोकन आवश्यक", ta: "🔴 முரண்பாடு — மனித மதிப்பாய்வு தேவை", te: "🔴 వైరుధ్యం — మానవ సమీక్ష అవసరం" },
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  VERIFIED: "bg-emerald-100 text-emerald-900 border-emerald-300",
+  NEEDS_REVIEW: "bg-amber-100 text-amber-900 border-amber-300",
+  HUMAN_REQUIRED: "bg-rose-100 text-rose-900 border-rose-300",
+  CONFLICT_DETECTED: "bg-rose-100 text-rose-900 border-rose-300",
+};
+
+function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
+  const label = STATUS_LABELS[status]?.[lang] ?? STATUS_LABELS.NEEDS_REVIEW[lang];
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${STATUS_STYLES[status] ?? STATUS_STYLES.NEEDS_REVIEW}`}>
+      {label}
+    </span>
   );
 }

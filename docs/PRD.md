@@ -28,7 +28,7 @@ This paperwork is frequently:
 - **Clinically Dense:** Written using complex abbreviations, ICD codes, and medical jargon.
 - **Difficult to Navigate:** Critical follow-up dates and medication instructions are buried inside narrative paragraphs.
 - **Inconsistent:** Different discharge documents from the same encounter may list conflicting follow-up dates or instructions.
-- **Linguistically Inaccessible:** Almost always provided in English, creating severe comprehension barriers for non-native speakers (e.g., Hindi, Gujarati speakers).
+- **Linguistically Inaccessible:** Almost always provided in English, creating severe comprehension barriers for non-native speakers (e.g., Hindi, Gujarati, Marathi, Tamil, Telugu speakers).
 
 ### 2.1 The Core Problem
 
@@ -68,7 +68,7 @@ To prevent clinical risk, CARELYNX enforces explicit boundaries. CARELYNX will *
 
 ### 5.1 The Patient
 - **Profile:** Recovering at home; may have limited medical literacy; easily overwhelmed by multi-page discharge documents.
-- **Needs:** Clear timeline of when to see the doctor next, what warning signs to watch out for, what medications are listed, and instructions translated into their preferred language (English, Hindi, Gujarati).
+- **Needs:** Clear timeline of when to see the doctor next, what warning signs to watch out for, what medications are listed, and instructions translated into their preferred language (English, Hindi, Gujarati, Marathi, Tamil, Telugu).
 
 ### 5.2 The Caregiver
 - **Profile:** Family member or home health aide assisting the patient with daily care and follow-ups.
@@ -111,7 +111,7 @@ To prevent clinical risk, CARELYNX enforces explicit boundaries. CARELYNX will *
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐
-│  Multilingual Toggle    │ (English / Hindi / Gujarati)
+│  Multilingual Toggle    │ (en / hi / gu / mr / ta / te)
 └─────────────────────────┘
 ```
 
@@ -157,16 +157,16 @@ Every extracted fact is assigned a deterministic status:
 
 ### 7.7 Multilingual Support
 - Languages supported in MVP:
-  - **English (`en`)**
-  - **Hindi (`hi`)**
-  - **Gujarati (`gu`)**
+  - **English (`en`)**, **Hindi (`hi`)**, **Gujarati (`gu`)**, **Marathi (`mr`)**, **Tamil (`ta`)**, **Telugu (`te`)**
+- All interface text (headings, status labels, review banners) ships pre-translated for every language.
+- Only `VERIFIED` care-plan text is machine-translated, with drug names, doses, dates and numbers masked before and checked after; anything that fails the check is shown in English with a notice.
 - Strict translation invariant: Translating text must **never** increase certainty (e.g., "may" cannot become "will"), alter drug names, alter dosages, or remove warning flags.
 
 ### 7.8 Human Reviewer Dashboard
 - Dedicated view for clinical reviewers (`/review`).
 - Shows pending review cases categorized by reason (`CONFLICT`, `LOW_CONFIDENCE`, `UNSUPPORTED`).
 - Allows reviewers to inspect both source documents side-by-side.
-- Actions: `APPROVE_SOURCE_A`, `APPROVE_SOURCE_B`, `REJECT_BOTH`, `OVERRIDE_MANUAL`.
+- Actions: `APPROVE`, `REJECT`, `SELECT_SOURCE` (pick the correct document in a conflict), `CORRECT_VALUE` (enter the value confirmed against the source). A written rationale is required.
 - Records immutable audit trail for every clinical decision.
 
 ---
@@ -186,12 +186,12 @@ CARELYNX is architected to utilize AMD-accelerated hardware for local, high-thro
 2. **Hallucination / Unsupported Claim Rate:** $0\%$ unsupported claims presented to patients without review warnings.
 3. **Conflict Detection Recall:** $100\%$ detection of contradictory follow-up dates or medications across multi-document encounters.
 4. **Review Escalation Accuracy:** 100% of low-confidence OCR or ambiguous items successfully routed to the review queue.
-5. **Language Preservation:** 100% preservation of dates, dosages, and uncertainty indicators across English, Hindi, and Gujarati translations.
+5. **Language Preservation:** 100% preservation of dates, dosages, and uncertainty indicators across all six supported languages.
 
 ---
 
 ## 10. Future Roadmap
 
-- **Phase 2:** Voice interface for low-literacy patients; additional regional languages (Marathi, Tamil, Telugu).
+- **Phase 2:** Voice interface for low-literacy patients; further regional languages beyond the six shipped in the MVP.
 - **Phase 3:** Hospital EHR integration via FHIR / HL7 standard endpoints; automated post-discharge SMS reminders.
 - **Phase 4:** Edge inference running directly on clinic workstation AMD Ryzen AI NPUs for zero-cloud data isolation.

@@ -1,6 +1,6 @@
 # CARELYNX — System Architecture
 
-> **Document Version:** 1.1.0  
+> **Document Version:** 1.2.0  
 > **Source of Truth:** `/docs/ARCHITECTURE.md` (Synced with `/docs copy/ARCHITECTURE.md`)  
 > **Target Audience:** Engineering Team & AI Coding Assistants  
 
@@ -66,7 +66,7 @@ Build a modular, evidence-first healthcare document processing platform where AI
  │           ▼                                                                    │
  │   ┌───────────────┐        ┌───────────────────┐                               │
  │   │ Care Plan Gen │───────▶│Translation Service│                               │
- │   └───────────────┘        │  (en / hi / gu)   │                               │
+ │   └───────────────┘        │ en/hi/gu/mr/ta/te │                               │
  │                            └───────────────────┘                               │
  └────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -80,7 +80,7 @@ Build a modular, evidence-first healthcare document processing platform where AI
 - **Key Modules:**
   - `app/page.tsx`: Patient portal containing document upload, progress indicators, care plan timeline, medication list, and multilingual selector.
   - `app/review/page.tsx`: Clinical reviewer workspace displaying flagged conflicts, side-by-side document views, and resolution controls.
-  - `lib/api.ts`: Typed API client handling all requests, error mapping, and role headers (`X-Carelynx-Role`).
+  - `lib/api.ts`: Typed API client handling all requests and error mapping; reviewer calls send `X-Carelynx-Role: reviewer`.
 
 ### 3.2 API Tier (`apps/api/app`)
 - **Technology:** FastAPI, Pydantic v2, Python 3.10+, Uvicorn.
@@ -94,36 +94,48 @@ Build a modular, evidence-first healthcare document processing platform where AI
 ### 3.3 Storage Abstraction (`apps/api/app/storage`)
 - **Protocol:** `StorageBackend` (`put`, `get`, `delete`, `exists`).
 - **Implementations:**
-  - `LocalPrivateStorage`: Stores files in an isolated directory (`./storage_root`) with hashed storage keys. Files are never served statically.
-  - `S3Storage` / `SupabaseStorage`: Cloud-ready drop-in replacement.
+  - `LocalPrivateStorage`: Stores files in an isolated directory (`STORAGE_LOCAL_DIR`, default `apps/api/var/storage`) with random storage keys. Files are never served statically. **This is the only implemented backend.**
+  - S3-compatible / Supabase storage: planned drop-in behind the same protocol — **not implemented**.
 
 ### 3.4 Inference Abstraction (`apps/api/app/ai`)
-- **Protocol:** `InferenceProvider` (`extract_facts`, `health_check`).
+- **Protocol:** `InferenceProvider` (`app/ai/provider.py`): `info: ProviderInfo(name, model, hardware_label)`, `async generate_structured(StructuredRequest) -> dict`, `async generate_text(system_prompt, user_prompt) -> str`. Providers return raw output; failures raise `ProviderError`. Selected by `INFERENCE_PROVIDER` (`app/ai/factory.py`).
 - **Implementations:**
-  - `RuleBasedProvider`: Fast, deterministic regex & heuristic parser for local testing and zero-GPU environments.
-  - `OpenAICompatibleProvider`: Standard completions client configured for AMD ROCm-hosted vLLM or local LLM instances.
-- **Prompt Isolation:** Prompt templates versioned under `apps/api/app/ai/prompts/` (e.g. `extraction_v1.md`).
+  - `RuleBasedProvider` (default): deterministic, page-aware extractor. Reads the real page texts from `request.context["pages"]` and recognises document *shapes* (labelled fields, list items under headings, `<name> <dose><unit> …` medication lines, label/value table rows) — no drug-name list, no invented values. Quotes are verbatim slices of the page they cite; OCR-damaged text is reported with `legible=false` and unreadable fields `null`. Cannot generate free text.
+  - `OpenAICompatibleProvider` (`openai_compat`): `/v1/chat/completions` client with `response_format: json_schema`, for vLLM on AMD ROCm (or any compatible endpoint). Never falls back silently.
+- **Fallback policy (`app/services/extraction.py::run_extraction`):** if a non-rule-based provider fails (network, malformed JSON, schema violation) the rule-based extractor is used and facts record `extracted_by = "rule_based (fallback from openai_compat)"`, with an audit event. If that also fails → `ProviderError` → `502 MODEL_ERROR`.
+- **Prompt Isolation:** versioned prompts under `apps/api/app/ai/prompts/` (`extraction_v1.md`, `translation_v1.md`), each stating role, task, allowed information, forbidden behaviour, output schema, evidence and abstention rules.
 
-### 3.5 Evidence & Safety Engine (`apps/api/app/safety`)
-- **Verbatim Matcher:** Verifies that every extracted snippet appears identically on the cited source page.
-- **Deterministic Policy:** Enforces strict prohibitions against diagnostic speculation, unauthorized dose modifications, or hallucinated facts.
-- **Conflict Detector:** Computes equality and compatibility between facts across different documents within the same case.
+### 3.5 Evidence & Safety Engine (`apps/api/app/safety`, `app/services/conflicts.py`)
+- **Verbatim Matcher:** Verifies that every extracted snippet appears identically on the cited source page (relocating to the real page if needed).
+- **Deterministic Status & Confidence:** `status.py` computes status and an application-level confidence from page quality, OCR confidence, quote quality, legibility, evidence and key-field parsing (SAFETY.md §2.1).
+- **Deterministic Policy:** `policy.py` rejects generated advice, dose-change and diagnosis language that is not literally in the verified source quote.
+- **Conflict Detector:** groups facts by `(fact_type, subject)`, compares normalised values, never picks a winner, opens HIGH reviews (SAFETY.md §3).
 
----
+### 3.6 Translation (`apps/api/app/services/translation.py`)
+`GET /cases/{id}/care-plan?lang=xx` (care-plan service) sends only `VERIFIED` display text to `translate_texts(texts, lang, protected_terms=drug names)`:
+
+```text
+mask drug names / doses / dates / times / phones / numbers → placeholder tokens
+  → Google Cloud Translation v2 (if GOOGLE_TRANSLATE_API_KEY)
+  → openai_compat LLM with translation_v1 prompt (if INFERENCE_PROVIDER != rule_based)
+  → free Google web endpoint (deep-translator)
+unmask → verify every token returned exactly once and digits unchanged → else None ("unavailable", English shown)
+```
+10 s budget per batch; failures never raise; in-process cache keyed by (text, language, protected terms).
 
 ## 4. AMD Hardware & ROCm Integration
 
-For hackathon deployments and edge clinical workloads, CARELYNX integrates with AMD computing hardware:
-- **Runtime:** vLLM running on AMD ROCm (Radeon / Instinct / Ryzen AI).
-- **Communication:** Standard OpenAI-compatible REST API exposed over local network.
-- **Configuration:** Controlled via `.env` settings:
+- **Runtime:** vLLM on ROCm serving `Qwen/Qwen2.5-7B-Instruct` (`infra/amd/docker-compose.rocm.yml`, port 8080), reached through `OpenAICompatibleProvider`.
+- **Configuration** (`.env`, see `.env.example` and `infra/amd/README.md`):
   ```env
-  INFERENCE_PROVIDER=openai_compatible
-  OPENAI_COMPATIBLE_BASE_URL=http://localhost:8080/v1
-  OPENAI_COMPATIBLE_MODEL=meta-llama/Llama-3-8B-Instruct
-  OPENAI_COMPATIBLE_API_KEY=not-needed
+  INFERENCE_PROVIDER=openai_compat
+  INFERENCE_BASE_URL=http://localhost:8080/v1
+  INFERENCE_MODEL=Qwen/Qwen2.5-7B-Instruct
+  INFERENCE_HARDWARE_LABEL=amd-rocm-vllm   # only when the endpoint really runs on an AMD GPU
   ```
-- **Fallback Guarantee:** If AMD hardware is offline or during developer unit testing, the system automatically falls back to `RuleBasedProvider` without crashing or blocking the UI.
+- **Measurement:** `infra/amd/benchmark_rocm.py` benchmarks the real extraction prompt on the endpoint and labels results "AMD GPU (ROCm)" only when `rocm-smi`/`amd-smi` detect an AMD GPU on the same host; `apps/api/scripts/evaluate_clinical.py --provider openai_compat` scores scenarios A/B/C with the LLM.
+- **Status:** the ROCm path is implemented and deployable but has **not** been executed on AMD hardware from this repository's development machines; all committed results are CPU rule-based results and are labelled as such.
+- **Fallback:** if the endpoint is unavailable, extraction falls back to `RuleBasedProvider` with truthful provenance (§3.4).
 
 ---
 
@@ -191,7 +203,7 @@ Client (Web)                  FastAPI Router                  Document Pipeline 
 
 ## 7. Security & Compliance Invariants
 
-1. **Least-Privilege Role Gating:** Restricted routes (e.g. `/api/v1/reviews/*`) require the `X-Carelynx-Role: reviewer` header.
+1. **Least-Privilege Reviewer Access:** Restricted routes (`/api/v1/reviews/*`, `/cases/{id}/audit`) require the `X-Carelynx-Role: reviewer` header (demo boundary; see API_CONTRACTS §1.1).
 2. **Storage Isolation:** Uploaded medical records are stored with randomized UUID keys, never accessible directly by URL or static route.
 3. **No Clinical Hallucination:** Zero clinical advice generation. If a document does not mention an item, the model cannot supply one.
 4. **Data Sanitization:** Passwords, keys, and raw clinical document blobs are excluded from application logs.

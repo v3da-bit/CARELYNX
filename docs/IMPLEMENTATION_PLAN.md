@@ -59,8 +59,9 @@ All primary architectural specifications and engineering instructions are presen
 | Phase 3 | Structured Fact Extraction & Inference Engine | ✅ Complete |
 | Phase 4 | Verbatim Evidence Matching & Conflict Detection | ✅ Complete |
 | Phase 5 | Patient Care Plan Timeline & Evidence Drawer UI | ✅ Complete |
-| Phase 6 | Multilingual Translation Engine (EN, HI, GU) | ✅ Complete |
+| Phase 6 | Multilingual Translation Engine (EN, HI, GU, MR, TA, TE) — masked, verified, VERIFIED-only | ✅ Complete |
 | Phase 7 | Clinical Reviewer Workspace (`/review`) & Audit Log | ✅ Complete |
-| Phase 8 | AMD ROCm Inference Deployment & Benchmark Scripts | ✅ Complete |
+| Phase 8 | AMD ROCm Inference Deployment & Benchmark Scripts | ⚠ Integrated; **not yet run on AMD hardware** (CLX-020) |
 | Phase 9 | Synthetic Evaluation Datasets & Verification | ✅ Complete |
 | Phase 10 | Documentation Synchronization & Team Alignment | ✅ Complete |
+| Audit | 2026-10-12 remediation (CLX-016…019): contract v2, review flow, extraction, evaluation, Docker | ✅ Complete |

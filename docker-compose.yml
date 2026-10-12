@@ -1,3 +1,5 @@
+# `docker compose up --build` → web http://localhost:${WEB_PORT:-3000}, API http://localhost:${API_PORT:-8000}/api/v1
+# Host ports are overridable (API_PORT / WEB_PORT / POSTGRES_PORT) when the defaults are already in use.
 services:
   db:
     image: postgres:16-alpine
@@ -6,11 +8,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-locally}
       POSTGRES_DB: ${POSTGRES_DB:-carelynx}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-carelynx}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-carelynx} -d ${POSTGRES_DB:-carelynx}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -20,18 +22,21 @@ services:
       context: ./apps/api
       dockerfile: Dockerfile
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-carelynx}:${POSTGRES_PASSWORD:-change-me-locally}@db:5432/${POSTGRES_DB:-carelynx}
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      STORAGE_LOCAL_DIR: /data/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
       INFERENCE_PROVIDER: ${INFERENCE_PROVIDER:-rule_based}
-      INFERENCE_BASE_URL: ${INFERENCE_BASE_URL:-}
-      INFERENCE_MODEL: ${INFERENCE_MODEL:-}
+      INFERENCE_BASE_URL: ${INFERENCE_BASE_URL:-http://localhost:8080/v1}
+      INFERENCE_MODEL: ${INFERENCE_MODEL:-Qwen/Qwen2.5-7B-Instruct}
       INFERENCE_API_KEY: ${INFERENCE_API_KEY:-}
       INFERENCE_HARDWARE_LABEL: ${INFERENCE_HARDWARE_LABEL:-local-cpu}
-      STORAGE_LOCAL_DIR: /data/storage
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
     volumes:
       - docstore:/data/storage
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -41,9 +46,9 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-8000}/api/v1
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
     depends_on:
       - api
 

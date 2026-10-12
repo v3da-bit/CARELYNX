@@ -1,320 +1,395 @@
-import json
-import logging
+"""Deterministic, page-aware rule-based extractor (default provider: no network, no model, runs in-process on
+CPU).
+
+It reads the real page texts passed in `request.context["pages"]` and recognises common discharge-document
+conventions — labelled fields ("Allergies: …", "Date of Discharge: …"), list items under section headings,
+medication lines ("<name> 500 mg - …") and label/value table rows. There is no drug-name list: a medication is
+recognised by its shape, not its name.
+
+Every `quote` is a verbatim slice of the page it was found on, and `page_number` is that page. Text with
+likely
+OCR damage (5OO, tw?ce, 1? Oct) is reported with `legible=False` and its unreadable fields left null — never
+corrected or guessed. Application code (app.safety) still re-verifies every quote and computes status.
+"""
+
+from __future__ import annotations
+
 import re
+from datetime import date
 from typing import Any
 
-from app.ai.provider import ProviderInfo, StructuredRequest
+from app.ai.provider import ProviderError, ProviderInfo, StructuredRequest
+from app.safety.text_quality import suspicious_tokens
 
-logger = logging.getLogger(__name__)
+_MEDICAL_KEYWORDS = (
+    "DISCHARGE",
+    "HOSPITAL",
+    "PATIENT",
+    "DIAGNOS",
+    "MEDICATION",
+    "PRESCRIPTION",
+    "ADMISSION",
+    "PHYSICIAN",
+    "DOCTOR",
+    "CLINIC",
+    "FOLLOW-UP",
+    "APPOINTMENT",
+    "TREATMENT",
+    "ALLERG",
+    "INSTRUCTION",
+)
 
-# Medical dictionary mappings for safe, source-preserving translations
-# Preserves drug names, exact dosages, and dates while translating clinical instructions and terms
-HINDI_TERMS = {
-    "Community-acquired pneumonia": "कम्युनिटी-एक्वायर्ड निमोनिया (फेफड़ों का संक्रमण)",
-    "Communityacquired pneumonia": "कम्युनिटी-एक्वायर्ड निमोनिया (फेफड़ों का संक्रमण)",
-    "resolving": "सुधार हो रहा है",
-    "Essential Hypertension": "एसेंशियल हाइपरटेंशन (उच्च रक्तचाप)",
-    "Type 2 Diabetes Mellitus": "टाइप 2 डायबिटीज मेलिटस (मधुमेह)",
-    "possible, requires follow up": "संभावित, फॉलो-अप जांच आवश्यक",
-    "Primary Care Physician": "प्राइमरी केयर फिजिशियन (पारिवारिक डॉक्टर)",
-    "Pulmonology": "पल्मोनोलॉजी (फेफड़े रोग विशेषज्ञ)",
-    "follow up": "फॉलो-अप जांच",
-    "scheduled for": "निर्धारित दिनांक",
-    "daily": "प्रतिदिन",
-    "PO daily": "मुंह से रोजाना",
-    "PO daily (Morning)": "मुंह से रोजाना (सुबह)",
-    "q6h PRN for fever or pain": "बुखार या दर्द होने पर हर 6 घंटे में आवश्यकतानुसार",
-    "PO": "मुंह द्वारा",
-    "for 3 more days": "अगले 3 दिनों के लिए",
-    "Low sodium diet": "कम नमक वाला आहार",
-    "Avoid heavy lifting": "भारी वजन उठाने से बचें",
-    "Drink plenty of fluids": "पर्याप्त मात्रा में पानी और तरल पदार्थ पिएं",
-    "Call doctor if fever exceeds 101F": "यदि बुखार 101°F से अधिक हो तो डॉक्टर से तुरंत संपर्क करें",
-    "Go to the emergency department if shortness of breath worsens": "यदि सांस लेने में तकलीफ बढ़े तो तुरंत आपातकालीन विभाग (ER) जाएं",
-    "Keep wound clean and dry": "घाव को साफ और सूखा रखें",
+_MONTHS = {
+    m: i
+    for i, m in enumerate(
+        ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1
+    )
 }
+_MON = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
+_D = r"[0-9OoIl?]"  # a digit, or a character OCR commonly confuses with one (kept so we can flag, not guess)
+_DATE = (
+    rf"(?<![\w/])(?:(?P<iso>\d{{4}}-\d{{2}}-\d{{2}})"
+    rf"|(?P<d1>{_D}{{1,2}})\s+(?P<m1>{_MON})\.?,?\s+(?P<y1>{_D}{{4}})"
+    rf"|(?P<m2>{_MON})\.?\s+(?P<d2>{_D}{{1,2}}),?\s+(?P<y2>{_D}{{4}})"
+    rf"|(?P<a>\d{{1,2}})[/.-](?P<b>\d{{1,2}})[/.-](?P<y3>\d{{4}}))(?![\w/])"
+)
+DATE_RE = re.compile(_DATE, re.I)
+_NUMERIC_DATE = re.compile(r"(?<![\w/])(\d{1,2})[/.-](\d{1,2})[/.-]\d{4}(?![\w/])")
+_TIME = re.compile(r"\b\d{1,2}:\d{2}(?:\s*[AaPp]\.?[Mm]\.?)?")
 
-GUJARATI_TERMS = {
-    "Community-acquired pneumonia": "કમ્યુનિટી-એક્વાયર્ડ ન્યુમોનિયા (ફેફસાંનો ચેપ)",
-    "Communityacquired pneumonia": "કમ્યુનિટી-એક્વાયર્ડ ન્યુમોનિયા (ફેફસાંનો ચેપ)",
-    "resolving": "સુધારો થઈ રહ્યો છે",
-    "Essential Hypertension": "હાઈપરટેન્શન (હાઈ બ્લડ પ્રેશર)",
-    "Type 2 Diabetes Mellitus": "ટાઈપ 2 ડાયાબિટીસ",
-    "possible, requires follow up": "સંભવિત, ફોલો-અપ તપાસ જરૂરી",
-    "Primary Care Physician": "પ્રાથમિક સંભાળ ચિકિત્સક (ફેમિલી ડૉક્ટર)",
-    "Pulmonology": "પલ્મોનોલોજી (ફેફસાંના નિષ્ણાત)",
-    "follow up": "ફોલો-અપ તપાસ",
-    "scheduled for": "તારીખ નક્કી કરેલ છે",
-    "daily": "દરરોજ",
-    "PO daily": "મોં વાટે દરરોજ",
-    "PO daily (Morning)": "મોં વાટે દરરોજ (સવારે)",
-    "q6h PRN for fever or pain": "તાવ અથવા દુખાવા માટે જરૂર મુજબ દર 6 કલાકે",
-    "PO": "મોં વાટે",
-    "for 3 more days": "વધુ 3 દિવસ માટે",
-    "Low sodium diet": "ઓછા મીઠાવાળો ખોરાક",
-    "Avoid heavy lifting": "વજનદાર વસ્તુઓ ઊંચકવાનું ટાળો",
-    "Drink plenty of fluids": "પૂરતા પ્રમાણમાં પ્રવાહી/પાણી પીવો",
-    "Call doctor if fever exceeds 101F": "જો તાવ 101°F થી વધુ થાય તો તરત જ ડૉક્ટરનો સંપર્ક કરો",
-    "Go to the emergency department if shortness of breath worsens": "જો શ્વાસ લેવામાં તકલીફ વધે તો તાત્કાલિક ઈમરજન્સી વિભાગમાં જાઓ",
-    "Keep wound clean and dry": "ઘાને સાફ અને સૂકો રાખો",
-}
+_MARKER = re.compile(r"^(?:\d{1,2}[.)](?=\s)|[^\w\s\"'(]+)\s*")
+_ENCOUNTER = re.compile(
+    rf"(?:Date\s+of\s+)?(?P<kind>Admission|Admitted|Discharged?)(?:\s+Date)?(?:\s+on)?\s*[:\-]\s*{_DATE}",
+    re.I,
+)
+_LABEL_ONLY = re.compile(
+    r"(?:Date\s+of\s+)?(?P<label>Admission|Discharge|Follow[\s-]?up|Appointment|Next\s+visit|Review)(?:\s+date)?",
+    re.I,
+)
+_ALLERGY = re.compile(r"^(?:Known\s+)?(?:Drug\s+)?Allerg(?:y|ies)\s*[:\-]\s*(?P<v>.+)$", re.I)
+_NO_ALLERGY = re.compile(r"\b(?:no\s+known|nkda|nka|none|nil)\b", re.I)
+_DIAGNOSIS = re.compile(
+    r"^(?:(?:Primary|Final|Discharge|Principal|Provisional)\s+)?Diagnos[ie]s\s*[:\-]\s*(?P<v>.+)$", re.I
+)
+_FOLLOW_KW = re.compile(r"follow[\s-]?up|appointment|next\s+visit|revisit", re.I)
+_FOLLOW_LABEL = re.compile(
+    r"^(?:follow[\s-]?up(?:\s+appointment)?|appointment|next\s+visit)\s*[:\-]\s*", re.I
+)
+_FOLLOW_UP_LABEL = re.compile(r"^follow[\s-]?up\s*[:\-]", re.I)  # labelled follow-up even without a date
+_CLINICIAN = re.compile(r"\bDr\.?\s+(?:[A-Z]\.\s*)*[A-Z][A-Za-z\-]+")
+_DEPT_STOP = re.compile(r"\s+(?:with|on|at|scheduled|follow[\s-]?up|in)\b|[,.(]", re.I)
 
-def translate_medical_text(text: str, target_lang: str) -> str:
-    """Translates known clinical phrases while preserving dates, numbers, and drug names verbatim."""
-    terms = HINDI_TERMS if target_lang == "hi" else GUJARATI_TERMS if target_lang == "gu" else {}
-    translated = text
-    for en, tr in terms.items():
-        if en in translated:
-            translated = translated.replace(en, tr)
-    return translated
+_UNIT = r"(?:mg|mcg|µg|gm|g|ml|IU|units?|%)"
+_DOSE = rf"(?P<dose>\d[\dOoIl?.,]*)\s*(?P<unit>{_UNIT})(?![\w/])"
+_MED = re.compile(
+    r"^(?:(?:Tab|Tablet|Cap|Capsule|Inj|Syp|Syrup)\.?\s+)?"
+    rf"(?P<name>[A-Za-z][A-Za-z0-9\-]*(?:\s+[A-Za-z][A-Za-z0-9\-]*){{0,2}}?)\s+{_DOSE}(?P<rest>.*)$",
+    re.I,
+)
+_MED_NAME_ONLY = re.compile(r"[A-Z][A-Za-z0-9\-]+(?:\s[A-Za-z0-9\-]+){0,2}")
+_STRENGTH_ONLY = re.compile(rf"\d[\d.,]*\s*{_UNIT}", re.I)
+_QTY = re.compile(
+    r"^\d+(?:\.\d+)?\s*(?:tab(?:let)?s?|cap(?:sule)?s?|puffs?|drops?|ml|units?|sachets?)\b", re.I
+)
+_DUR = re.compile(r"^(?:for\s+|x\s*)?\d+\s*(?:more\s+)?(?:days?|weeks?|months?)\b", re.I)
+_TIMING = re.compile(
+    r"^(?:(?:before|after|with)\s+(?:food|meals?|breakfast|lunch|dinner)|at\s+(?:night|bedtime)|empty\s+stomach)",
+    re.I,
+)
+_SEGMENT_SPLIT = re.compile(r"\s+[-–]\s+|\s*[;,]\s*")
 
-def parse_to_iso_date(date_str: str | None) -> str | None:
-    if not date_str:
+_SECTIONS = (  # first match wins
+    (
+        "warning_sign",
+        re.compile(
+            r"warning|red\s+flag|return\s+to\s+(?:the\s+)?hospital|when\s+to\s+(?:call|seek)"
+            r"|seek\s+(?:immediate|emergency)|emergency",
+            re.I,
+        ),
+    ),
+    ("medication", re.compile(r"medication|medicine|prescription|^rx$", re.I)),
+    ("instruction", re.compile(r"instruction|activity|diet|home\s+care|wound\s+care", re.I)),
+    ("documented_condition", re.compile(r"diagnos", re.I)),
+    ("follow_up", re.compile(r"follow[\s-]?up|appointment", re.I)),
+)
+_LIST_SECTIONS = {"warning_sign", "instruction", "documented_condition"}
+
+
+def _lines(text: str) -> list[tuple[int, int, str]]:
+    """(start, end, stripped_line) with offsets into `text`, so multi-line quotes stay verbatim slices."""
+    out = []
+    for m in re.finditer(r"[^\n]+", text):
+        raw = m.group()
+        stripped = raw.strip()
+        if stripped:
+            start = m.start() + len(raw) - len(raw.lstrip())
+            out.append((start, start + len(stripped), stripped))
+    return out
+
+
+def _numeric_order(texts: list[str]) -> str | None:
+    """Day/month order for numeric dates, decided only by unambiguous dates in the same document."""
+    dmy = mdy = False
+    for t in texts:
+        for a, b in _NUMERIC_DATE.findall(t):
+            dmy |= int(a) > 12
+            mdy |= int(b) > 12
+    return "dmy" if dmy and not mdy else "mdy" if mdy and not dmy else None
+
+
+def parse_date(g: dict[str, str | None], numeric_order: str | None) -> str | None:
+    """ISO date from DATE_RE groups, or None when unreadable or ambiguous. Never guesses."""
+    try:
+        if g.get("iso"):
+            return date.fromisoformat(g["iso"]).isoformat()  # type: ignore[arg-type]
+        if g.get("a"):
+            a, b = int(g["a"]), int(g["b"])  # type: ignore[arg-type]
+            order = numeric_order or ("dmy" if a > 12 else "mdy" if b > 12 or a == b else None)
+            if order is None:
+                return None
+            day, month = (a, b) if order == "dmy" else (b, a)
+            return date(int(g["y3"]), month, day).isoformat()  # type: ignore[arg-type]
+        day_s, mon, year_s = (
+            g.get("d1") or g.get("d2"),
+            g.get("m1") or g.get("m2"),
+            g.get("y1") or g.get("y2"),
+        )
+        if not (day_s and mon and year_s and day_s.isdigit() and year_s.isdigit()):
+            return None
+        return date(int(year_s), _MONTHS[mon[:3].lower()], int(day_s)).isoformat()
+    except (ValueError, KeyError):
         return None
-    from datetime import datetime
-    date_str = date_str.strip()
-    
-    formats = [
-        "%Y-%m-%d",
-        "%d %B %Y",
-        "%d %b %Y",
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%m/%d/%Y",
-        "%m/%d/%y",
-        "%b %d, %Y",
-        "%B %d, %Y",
-        "%b %d %Y",
-        "%B %d %Y",
-    ]
-    for fmt in formats:
-        try:
-            dt = datetime.strptime(date_str, fmt)
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-    return None
+
+
+def _section_of(line: str) -> tuple[bool, str | None]:
+    """(is_header, section). Headers end with ':' or are ALL-CAPS titles (or 'Rx')."""
+    letters = [c for c in line if c.isalpha()]
+    is_header = (
+        line.endswith(":")
+        or line.lower() == "rx"
+        or (len(letters) >= 3 and all(c.isupper() for c in letters) and not _MARKER.match(line))
+    )
+    if not is_header:
+        return False, None
+    for kind, rx in _SECTIONS:
+        if rx.search(line.rstrip(":")):
+            return True, kind
+    return True, None
+
+
+def _fact(
+    fact_type: str,
+    page: int,
+    quote: str,
+    section: str | None,
+    value: dict[str, Any],
+    legible: bool | None = None,
+) -> dict[str, Any]:
+    return {
+        "fact_type": fact_type,
+        "source": {"page_number": page, "quote": quote, "section": section[:120] if section else None},
+        "legible": (not suspicious_tokens(quote)) if legible is None else legible,
+        "value": value,
+    }
+
+
+def _medication(name: str, strength: str | None, rest: str, legible: bool) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "name": name,
+        "strength": strength if legible else None,
+        "quantity": None,
+        "frequency": None,
+        "duration": None,
+        "timing": None,
+    }
+    if not legible:  # unreadable fields stay null; the item goes to review with its verbatim quote
+        return value
+    freq: list[str] = []
+    for seg in (s.strip(" -–,;.") for s in _SEGMENT_SPLIT.split(rest.strip(" -–,;"))):
+        if not seg:
+            continue
+        field = (
+            "quantity"
+            if _QTY.match(seg)
+            else "duration"
+            if _DUR.match(seg)
+            else "timing"
+            if _TIMING.match(seg)
+            else None
+        )
+        if field and value[field] is None:
+            value[field] = seg
+        else:
+            freq.append(seg)
+    value["frequency"] = ", ".join(freq) or None
+    return value
+
+
+def _follow_up(item: str, quote: str, date_match: re.Match[str] | None, order: str | None) -> dict[str, Any]:
+    body = _FOLLOW_LABEL.sub("", item)
+    dept = _DEPT_STOP.split(body, maxsplit=1)[0].strip(" :-")
+    clinician = _CLINICIAN.search(item)
+    time = _TIME.search(item)
+    return {
+        "date": parse_date(date_match.groupdict(), order) if date_match else None,
+        "time": time.group() if time else None,
+        "department": dept
+        if dept and dept[0].isupper() and len(dept.split()) <= 5 and not DATE_RE.search(dept)
+        else None,
+        "clinician": clinician.group() if clinician else None,
+        "raw_text": quote,
+    }
+
+
+def extract_from_pages(pages: list[tuple[int, str]]) -> list[dict[str, Any]]:
+    """Candidates (ExtractionOutput.facts shape) from (page_number, text) pairs of ONE document."""
+    order = _numeric_order([t for _, t in pages])
+    facts: list[dict[str, Any]] = []
+    section: str | None = None
+    header = ""
+    for page_no, text in pages:
+        lines = _lines(text)
+        skip = 0
+        for i, (start, _end, line) in enumerate(lines):
+            if skip:
+                skip -= 1
+                continue
+            nxt = lines[i + 1] if i + 1 < len(lines) else None
+            marker = _MARKER.match(line)
+            item = line[marker.end() :] if marker else line
+
+            is_header, kind = _section_of(line)
+            if is_header:
+                section, header = kind, line.rstrip(":")
+                continue
+
+            # Label on one line, value on the next (table layouts).
+            label = _LABEL_ONLY.fullmatch(item)
+            if label and nxt and (dm := DATE_RE.fullmatch(nxt[2])):
+                quote = text[start : nxt[1]]
+                lab = label.group("label").lower()
+                if lab in ("admission", "discharge"):
+                    facts.append(
+                        _fact(
+                            "encounter_date",
+                            page_no,
+                            quote,
+                            item,
+                            {"kind": lab, "date": parse_date(dm.groupdict(), order), "raw_text": quote},
+                        )
+                    )
+                else:
+                    facts.append(_fact("follow_up", page_no, quote, item, _follow_up("", quote, dm, order)))
+                skip = 1
+                continue
+
+            encounters = list(_ENCOUNTER.finditer(line))
+            for em in encounters:
+                kind_ = "admission" if em.group("kind").lower().startswith("admi") else "discharge"
+                facts.append(
+                    _fact(
+                        "encounter_date",
+                        page_no,
+                        em.group(),
+                        header or None,
+                        {"kind": kind_, "date": parse_date(em.groupdict(), order), "raw_text": em.group()},
+                    )
+                )
+            if encounters:
+                continue
+
+            if m := _ALLERGY.match(item):
+                v = m.group("v").strip().rstrip(".")
+                facts.append(
+                    _fact(
+                        "allergy",
+                        page_no,
+                        line,
+                        "Allergies",
+                        {"substance": v, "no_known_allergies": bool(_NO_ALLERGY.search(v))},
+                    )
+                )
+                continue
+
+            if m := _DIAGNOSIS.match(item):
+                facts.append(
+                    _fact(
+                        "documented_condition",
+                        page_no,
+                        line,
+                        "Diagnosis",
+                        {"text": m.group("v").strip().rstrip(".")},
+                    )
+                )
+                continue
+
+            dm = DATE_RE.search(line)
+            if (dm and (_FOLLOW_KW.search(line) or section == "follow_up")) or _FOLLOW_UP_LABEL.match(item):
+                facts.append(
+                    _fact(
+                        "follow_up", page_no, line, header or "Follow-up", _follow_up(item, line, dm, order)
+                    )
+                )
+                continue
+
+            if section == "medication" or (section is None and marker):
+                if m := _MED.match(item):
+                    legible = not suspicious_tokens(line)
+                    strength = item[m.start("dose") : m.end("unit")]
+                    facts.append(
+                        _fact(
+                            "medication",
+                            page_no,
+                            line,
+                            header or "Medications",
+                            _medication(m.group("name"), strength, m.group("rest"), legible),
+                            legible,
+                        )
+                    )
+                    continue
+
+            # Medication table row: name line, strength line, optional frequency / duration lines.
+            if not marker and nxt and _MED_NAME_ONLY.fullmatch(line) and _STRENGTH_ONLY.fullmatch(nxt[2]):
+                tail = []
+                for j in range(i + 2, min(i + 4, len(lines))):
+                    if j + 1 < len(lines) and _STRENGTH_ONLY.fullmatch(lines[j + 1][2]):
+                        break  # next table row starts here
+                    tail.append(lines[j])
+                last = tail[-1] if tail else nxt
+                quote = text[start : last[1]]
+                legible = not suspicious_tokens(quote)
+                facts.append(
+                    _fact(
+                        "medication",
+                        page_no,
+                        quote,
+                        header or "Medications",
+                        _medication(line, nxt[2], " - ".join(t[2] for t in tail), legible),
+                        legible,
+                    )
+                )
+                skip = 1 + len(tail)
+                continue
+
+            if section in _LIST_SECTIONS:
+                if marker and len(item) >= 3:
+                    facts.append(_fact(section, page_no, line, header, {"text": item.rstrip(".")}))
+                else:
+                    section = None  # prose after a list ends the list
+    return facts
 
 
 class RuleBasedProvider:
     def __init__(self) -> None:
-        self.info = ProviderInfo(
-            name="rule_based",
-            model="regex-v1",
-            hardware_label="cpu"
-        )
+        self.info = ProviderInfo(name="rule_based", model="rule-based-v2", hardware_label="cpu (in-process)")
 
     async def generate_structured(self, request: StructuredRequest) -> dict[str, Any]:
-        """Return raw JSON object by parsing the text or handling translation."""
-        logger.info(f"RuleBasedProvider: generating structured response for {request.task}")
-        
-        # Handle translation task
-        if request.task == "translation_v1":
-            target_lang = request.context.get("target_lang", "en") if request.context else "en"
-            facts_input = []
-            try:
-                match = re.search(r"Translate these facts to [a-z]+:\n(.*)", request.user_prompt, re.DOTALL)
-                if match:
-                    facts_input = json.loads(match.group(1).strip())
-            except Exception as e:
-                logger.warning(f"Could not parse facts for translation: {e}")
-
-            translated_facts = []
-            for f in facts_input:
-                f_id = f.get("id")
-                f_val = f.get("value", {})
-                new_val = {}
-                for k, v in f_val.items():
-                    if isinstance(v, str):
-                        new_val[k] = translate_medical_text(v, target_lang)
-                    else:
-                        new_val[k] = v
-                translated_facts.append({
-                    "id": f_id,
-                    "translated_value": new_val
-                })
-            return {"translated_facts": translated_facts}
-
-        # Extraction task
-        text = request.user_prompt
-        facts: list[dict[str, Any]] = []
-
-        # Check if text looks like a valid medical document
-        medical_keywords = [
-            "DISCHARGE", "HOSPITAL", "PATIENT", "DIAGNOS", "MEDICATION", "PRESCRIPTION",
-            "ADMISSION", "PHYSICIAN", "DOCTOR", "CLINICAL", "FOLLOW-UP", "APPOINTMENT",
-            "TREATMENT", "ALLERG", "INSTRUCTION", "VITAL"
-        ]
-        text_upper = text.upper()
-        if not any(kw in text_upper for kw in medical_keywords):
-            logger.info("RuleBasedProvider: Document has no recognizable medical keywords. Abstaining from extraction.")
-            return {"facts": []}
-
-        # Extract lines
-        raw_lines = [l.strip() for l in text.split("\n") if l.strip()]
-
-        raw_lines = [l.strip() for l in text.split("\n") if l.strip()]
-
-        # 1. Encounter Dates (Admission / Discharge)
-        adm_match = re.search(r"(?:Date of Admission|Admission)[\s:]*([0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})", text, re.IGNORECASE)
-        if adm_match:
-            quote = adm_match.group(0).strip()
-            date_str = adm_match.group(1).strip()
-            iso_d = parse_to_iso_date(date_str)
-            facts.append({
-                "fact_type": "encounter_date",
-                "source": {"page_number": 1, "quote": quote, "section": "Patient Info"},
-                "legible": True,
-                "value": {"kind": "admission", "date": iso_d, "raw_text": quote}
-            })
-
-        dis_match = re.search(r"(?:Date of Discharge|Discharge)[\s:]*([0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})", text, re.IGNORECASE)
-        if dis_match:
-            quote = dis_match.group(0).strip()
-            date_str = dis_match.group(1).strip()
-            iso_d = parse_to_iso_date(date_str)
-            facts.append({
-                "fact_type": "encounter_date",
-                "source": {"page_number": 1, "quote": quote, "section": "Patient Info"},
-                "legible": True,
-                "value": {"kind": "discharge", "date": iso_d, "raw_text": quote}
-            })
-
-        # 2. Reason for Admission / Documented Condition
-        reason_match = re.search(r"Reason for admission:\s*([^\n\.]+)", text, re.IGNORECASE)
-        if reason_match:
-            quote = reason_match.group(0).strip()
-            condition_text = reason_match.group(1).strip()
-            facts.append({
-                "fact_type": "documented_condition",
-                "source": {"page_number": 1, "quote": quote, "section": "Reason for Admission"},
-                "legible": True,
-                "value": {"text": condition_text}
-            })
-
-        # 3. Multi-line Medication Table Parser (Cardiostat, Gastrocalm, Relaxon, Vita-D3, etc.)
-        known_med_names = [
-            "Cardiostat", "Gastrocalm", "Relaxon", "Vita-D3", "Aspirin", "Atorvastatin",
-            "Metformin", "Lisinopril", "Amoxicillin", "Paracetamol", "Omeprazole"
-        ]
-        for med in known_med_names:
-            # Pattern matching medication with strength and frequency in table or text
-            med_pattern = re.compile(rf"({re.escape(med)})\s*\n\s*(\d+[\d\.,]*\s*(?:mg|mcg|g|ml|IU|units?|tablets?))\s*\n\s*([^\n]+)", re.IGNORECASE)
-            for m in med_pattern.finditer(text):
-                m_name = m.group(1).strip()
-                m_dose = m.group(2).strip()
-                m_freq = m.group(3).strip()
-                quote = m.group(0).strip()
-                facts.append({
-                    "fact_type": "medication",
-                    "source": {"page_number": 2, "quote": quote, "section": "Medication Record"},
-                    "legible": True,
-                    "value": {
-                        "name": m_name,
-                        "strength": m_dose,
-                        "frequency": m_freq
-                    }
-                })
-        # 4. Appointment Sheet & Follow-Up Parsing
-        fup_matches = re.finditer(r"(?:Follow-up date|Appointment date)[\s:]*([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4})", text, re.IGNORECASE)
-        for fm in fup_matches:
-            quote = fm.group(0).strip()
-            fdate_str = fm.group(1).strip()
-            iso_f = parse_to_iso_date(fdate_str)
-            facts.append({
-                "fact_type": "follow_up",
-                "source": {"page_number": 2 if "14" in fdate_str else 5, "quote": quote, "section": "Follow-up Information"},
-                "legible": True,
-                "value": {
-                    "raw_text": quote,
-                    "date": iso_f,
-                    "department": "Outpatient Medicine Clinic"
-                }
-            })
-
-        # 4b. Legacy Follow-ups (from main branch)
-        if "FOLLOW-UP APPOINTMENTS" in text or "NEXT VISITS" in text:
-            fups = re.findall(r"-\s+(.*?)\s+(?:on|scheduled for)\s+([A-Za-z]{3}\s\d{1,2},?\s\d{4}|\d{1,2}/\d{1,2}/\d{2,4})", text)
-            for f in fups:
-                kind, date = f
-                facts.append({
-                    "fact_type": "follow_up",
-                    "source": {"page_number": 1, "quote": f"{kind.strip()} on {date.strip()}" if "on" in text else f"{kind.strip()} scheduled for {date.strip()}", "section": "Follow-up"},
-                    "legible": True,
-                    "value": {
-                        "raw_text": f"{kind.strip()} on {date.strip()}"
-                    }
-                })
-
-        # 5. Section and Line-based Extraction
-        current_section = None
-        for line in raw_lines:
-            line_upper = line.upper()
-            
-            # Check for section boundaries
-            if any(h in line_upper for h in ["PRIMARY DIAGNOSES:", "DIAGNOSES:", "DIAGNOSIS:"]):
-                current_section = "diagnoses"
-                continue
-            elif any(h in line_upper for h in ["DISCHARGE MEDICATIONS:", "CURRENT MEDICATIONS:"]):
-                current_section = "medications"
-                continue
-            elif any(h in line_upper for h in ["FOLLOW-UP APPOINTMENTS:", "SCHEDULED APPOINTMENTS:"]):
-                current_section = "follow_up"
-                continue
-            elif any(h in line_upper for h in ["WARNING SIGNS", "RED FLAGS", "EMERGENCY INSTRUCTIONS", "WHEN TO CALL"]):
-                current_section = "warnings"
-                continue
-            elif any(h in line_upper for h in ["DOCUMENTED INSTRUCTIONS", "DISCHARGE INSTRUCTIONS", "CARE INSTRUCTIONS", "ACTIVITY & DIET"]):
-                current_section = "instructions"
-                continue
-            elif any(h in line_upper for h in ["HOSPITAL COURSE:", "CARELYNX", "PATIENT NAME:", "ELECTRONICALLY SIGNED", "IMPORTANT SOURCE NOTE"]):
-                current_section = None
-                continue
-
-            cleaned_line = re.sub(r"^\d+[\.\)]\s*|-\s*|•\s*|\x7f\s*", "", line).strip()
-            if not cleaned_line or len(cleaned_line) < 4 or cleaned_line.startswith("---") or "CARELYNX Synthetic" in cleaned_line:
-                continue
-
-            if current_section == "diagnoses":
-                facts.append({
-                    "fact_type": "documented_condition",
-                    "source": {"page_number": 1, "quote": line, "section": "Diagnoses"},
-                    "legible": True,
-                    "value": {"text": cleaned_line}
-                })
-
-            elif current_section == "medications":
-                m = re.search(r"^([A-Za-z0-9\s\-\/]+?)\s+(\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|IU|puffs?|tablets?|units?|capsules?))\s*(.*)$", cleaned_line, re.IGNORECASE)
-                if m:
-                    name, dose, inst = m.groups()
-                    facts.append({
-                        "fact_type": "medication",
-                        "source": {"page_number": 2, "quote": line, "section": "Medications"},
-                        "legible": True,
-                        "value": {
-                            "name": name.strip(),
-                            "strength": dose.strip(),
-                            "frequency": inst.strip() if inst else "As directed"
-                        }
-                    })
-
-            elif current_section == "warnings":
-                facts.append({
-                    "fact_type": "warning_sign",
-                    "source": {"page_number": 1, "quote": line, "section": "Warning Signs"},
-                    "legible": True,
-                    "value": {"text": cleaned_line}
-                })
-
-            elif current_section == "instructions":
-                facts.append({
-                    "fact_type": "instruction",
-                    "source": {"page_number": 1, "quote": line, "section": "Instructions"},
-                    "legible": True,
-                    "value": {"text": cleaned_line}
-                })
-
-        return {"facts": facts}
+        if request.task != "extraction_v1":
+            raise ProviderError(f"rule_based provider does not support task {request.task!r}")
+        pages = [(int(p["page_number"]), p.get("text") or "") for p in request.context.get("pages", [])]
+        if not any(kw in "\n".join(t for _, t in pages).upper() for kw in _MEDICAL_KEYWORDS):
+            return {"facts": []}  # not recognisably a medical document: abstain
+        return {"facts": extract_from_pages(pages)}
 
     async def generate_text(self, system_prompt: str, user_prompt: str) -> str:
-        return "RuleBasedProvider text response."
+        raise ProviderError("rule_based provider cannot generate free text")

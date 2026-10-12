@@ -1,317 +1,207 @@
+"""Safety-checked translation of patient-facing text (SAFETY.md §5).
+
+`translate_texts` masks drug names, doses, dates, times, phone numbers and every other number with placeholder
+tokens before any text leaves the process, then unmasks and verifies the result: each placeholder must come
+back
+exactly once and the digits of the output must equal the digits of the source. Anything that fails → None (the
+caller shows English with "translation unavailable"). Network/engine failures never raise.
+
+Engine order: Google Cloud Translation v2 (if GOOGLE_TRANSLATE_API_KEY) → the configured openai_compat LLM
+(only
+when INFERENCE_PROVIDER is not rule_based; prompt `translation_v1`) → free Google web endpoint via
+deep-translator → None. Items an engine fails on are retried on the next engine. Patient text is never logged.
+"""
+
+from __future__ import annotations
+
 import asyncio
 import html
-import json
 import logging
-import os
-import uuid
-from typing import Any
-from deep_translator import MyMemoryTranslator
+import re
+from collections.abc import Awaitable, Callable, Sequence
+
 import httpx
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from app.ai.factory import get_inference_provider
-from app.ai.provider import StructuredRequest
+from app.ai.prompts import load_prompt
 from app.core.config import get_settings
-from app.models.entities import Fact
+from app.models.enums import Language
 
 logger = logging.getLogger(__name__)
 
 GOOGLE_TRANSLATE_API_URL = "https://translation.googleapis.com/language/translate/v2"
-
-# Supported target languages per specification:
-# English (en), हिन्दी (hi), ગુજરાતી (gu), मराठी (mr), தமிழ் (ta), తెలుగు (te)
-SUPPORTED_LANGUAGES: dict[str, str] = {
-    "en": "English",
-    "hi": "हिन्दी",
-    "gu": "ગુજરાતી",
-    "mr": "मराठी",
-    "ta": "தமிழ்",
-    "te": "తెలుగు",
+TOTAL_TIMEOUT_S = 10.0  # whole batch, all engines
+LANGUAGE_NAMES = {
+    Language.HI: "Hindi",
+    Language.GU: "Gujarati",
+    Language.MR: "Marathi",
+    Language.TA: "Tamil",
+    Language.TE: "Telugu",
 }
 
-# In-memory translation cache keyed by (case_id_str, target_lang)
-_TRANSLATION_CACHE: dict[tuple[str, str], dict[str, Any]] = {}
+_MON = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
+_PROTECTED = (
+    r"\b\d{4}-\d{2}-\d{2}\b",  # ISO date
+    rf"\b\d{{1,2}}\s+{_MON},?\s+\d{{4}}\b",  # 14 Oct 2026
+    rf"\b{_MON}\s+\d{{1,2}},?\s+\d{{4}}\b",  # Oct 14, 2026
+    r"\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b",  # 14/10/2026
+    r"\b\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?",  # 10:30 AM
+    r"\+?\d[\d\s()-]{7,}\d",  # phone numbers (and dosing patterns like 1 - 0 - 1)
+    r"\b\d+(?:[.,]\d+)*\s*(?:%|(?:mg|mcg|µg|gm|g|ml|iu|units?|tablets?|tabs?|capsules?|caps?|puffs?|drops?)\b)",
+    r"\d+(?:[.,]\d+)*",  # any other number
+)
+_TOKEN_PREFIX = "ZQX"  # noqa: S105 — placeholder marker, not a secret
+_TOKEN = re.compile(_TOKEN_PREFIX + r"[A-Z]{2}")
+_DIGITS = re.compile(r"\d+")  # Unicode digits too: a Devanagari numeral in the output fails verification
+_LETTERS = re.compile(r"[^\W\d_]")
+
+_CACHE_MAX = 2048
+_CACHE: dict[tuple[str, str, tuple[str, ...]], str] = {}
+
+Engine = Callable[[list[str], Language], Awaitable[list[str | None]]]
 
 
-def clear_translation_cache(case_id: str | None = None) -> None:
-    """Clear memory cache for a given case_id or all cases."""
-    global _TRANSLATION_CACHE
-    if case_id is None:
-        _TRANSLATION_CACHE.clear()
-    else:
-        _TRANSLATION_CACHE = {k: v for k, v in _TRANSLATION_CACHE.items() if k[0] != case_id}
+def _token(i: int) -> str:
+    return f"{_TOKEN_PREFIX}{chr(65 + i // 26)}{chr(65 + i % 26)}"
 
 
-async def translate_with_google_v2(
-    texts: list[str],
-    target_lang: str,
-    source_lang: str = "en",
-    api_key: str | None = None,
-    timeout: float = 12.0,
-) -> list[str]:
-    """
-    Translates a list of strings using Google Cloud Translation API v2:
-    POST https://translation.googleapis.com/language/translate/v2
-    """
-    if not texts:
-        return []
+def mask(text: str, protected_terms: Sequence[str] = ()) -> tuple[str, dict[str, str]]:
+    """Replace protected spans with placeholder tokens. Returns (masked_text, token → original)."""
+    terms = sorted({t for t in protected_terms if t.strip()}, key=len, reverse=True)
+    rx = re.compile("|".join([*(rf"(?<!\w){re.escape(t)}(?!\w)" for t in terms), *_PROTECTED]), re.I)
+    mapping: dict[str, str] = {}
 
-    if target_lang == "en" or target_lang == source_lang:
-        return list(texts)
+    def repl(m: re.Match[str]) -> str:
+        tok = _token(len(mapping))
+        mapping[tok] = m.group()
+        return tok
 
-    key = api_key or get_settings().google_translate_api_key or os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
-    if not key:
-        raise ValueError("Google Translate API key not configured")
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-goog-api-key": key,
-    }
-    # If the key is an OAuth Bearer token (starts with ya29.)
-    if key.startswith("ya29."):
-        headers["Authorization"] = f"Bearer {key}"
-        url = GOOGLE_TRANSLATE_API_URL
-    else:
-        url = f"{GOOGLE_TRANSLATE_API_URL}?key={key}"
-
-    payload = {
-        "q": texts,
-        "target": target_lang,
-        "source": source_lang,
-        "format": "text",
-    }
-
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-
-    translations_data = data.get("data", {}).get("translations", [])
-    results: list[str] = []
-    for item in translations_data:
-        raw_translated = item.get("translatedText", "")
-        # Google Translate v2 returns HTML entity escapes (e.g. &#39;, &quot;) even with format="text"
-        clean_text = html.unescape(raw_translated)
-        results.append(clean_text)
-
-    # Pad with originals if count differs
-    if len(results) < len(texts):
-        results.extend(texts[len(results):])
-
-    return results
+    masked = rx.sub(repl, text)
+    if len(mapping) > 26 * 26:
+        raise ValueError("too many protected spans")
+    return masked, mapping
 
 
-async def translate_facts(db: Session, case_id: str, target_lang: str) -> dict[str, Any]:
-    """Translate facts using Google Cloud Translation v2 when configured, with safe inference fallback."""
-    case_uuid = uuid.UUID(case_id) if isinstance(case_id, str) else case_id
-    facts = db.scalars(select(Fact).where(Fact.case_id == case_uuid)).all()
+def unmask(translated: str | None, source: str, mapping: dict[str, str]) -> str | None:
+    """Restore placeholders and verify nothing protected was lost or altered. None on any doubt."""
+    if not translated or not translated.strip() or "UNTRANSLATABLE" in translated:
+        return None
+    if any(translated.count(tok) != 1 for tok in mapping):
+        return None
+    out = translated
+    for tok, original in mapping.items():
+        out = out.replace(tok, original)
+    if _TOKEN_PREFIX in out or sorted(_DIGITS.findall(out)) != sorted(_DIGITS.findall(source)):
+        return None
+    return out.strip()
 
-    if not facts:
-        return {
-            "case_id": case_id,
-            "language": target_lang,
-            "facts": [],
-        }
 
-    # If target language is English, return directly without network overhead
-    if target_lang == "en":
-        return {
-            "case_id": case_id,
-            "language": "en",
-            "facts": [
-                {
-                    "id": str(f.id),
-                    "fact_type": f.fact_type.value if hasattr(f.fact_type, "value") else str(f.fact_type),
-                    "translated_value": f.value,
-                    "status": f.status.value if hasattr(f.status, "value") else str(f.status),
-                }
-                for f in facts
-            ],
-        }
+async def _google_v2(texts: list[str], lang: Language) -> list[str | None]:
+    key = get_settings().google_translate_api_key
+    async with httpx.AsyncClient(timeout=TOTAL_TIMEOUT_S) as client:
+        r = await client.post(
+            GOOGLE_TRANSLATE_API_URL,
+            json={"q": texts, "target": lang.value, "source": "en", "format": "text"},
+            headers={"X-goog-api-key": key},  # header, never the URL: keys must not end up in access logs
+        )
+        r.raise_for_status()
+        items = r.json()["data"]["translations"]
+    if len(items) != len(texts):
+        raise ValueError("Google v2 returned a different number of items")
+    return [html.unescape(i.get("translatedText") or "") or None for i in items]
 
-    # Check cache first
-    cache_key = (str(case_id), target_lang)
-    if cache_key in _TRANSLATION_CACHE:
-        return _TRANSLATION_CACHE[cache_key]
 
-    # Attempt Google Cloud Translation v2 first if API key is provided
-    google_key = get_settings().google_translate_api_key or os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
-    if google_key:
-        try:
-            translatable_keys = {"name", "text", "raw_text", "instruction", "substance", "kind", "notes", "department", "reaction"}
-            
-            # Extract list of texts to batch translate
-            items_to_translate: list[tuple[str, str, str]] = []  # (fact_id, key, text)
-            for f in facts:
-                if isinstance(f.value, dict):
-                    for k, v in f.value.items():
-                        if isinstance(v, str) and k in translatable_keys and v.strip():
-                            items_to_translate.append((str(f.id), k, v))
-
-            if items_to_translate:
-                texts = [item[2] for item in items_to_translate]
-                translated_texts = await translate_with_google_v2(texts, target_lang, api_key=google_key)
-
-                # Reconstruct translated dictionaries per fact
-                fact_trans_map: dict[str, dict[str, Any]] = {str(f.id): dict(f.value) if isinstance(f.value, dict) else {} for f in facts}
-                for (fid, k, _), trans_str in zip(items_to_translate, translated_texts):
-                    fact_trans_map[fid][k] = trans_str
-
-                final_facts = [
-                    {
-                        "id": str(f.id),
-                        "fact_type": f.fact_type.value if hasattr(f.fact_type, "value") else str(f.fact_type),
-                        "translated_value": fact_trans_map.get(str(f.id), f.value),
-                        "status": f.status.value if hasattr(f.status, "value") else str(f.status),
-                    }
-                    for f in facts
-                ]
-                
-                result = {
-                    "case_id": case_id,
-                    "language": target_lang,
-                    "facts": final_facts,
-                    "provider": "google_translate_v2",
-                }
-                _TRANSLATION_CACHE[cache_key] = result
-                return result
-        except Exception as e:
-            logger.warning(f"Google Cloud Translation v2 failed, falling back to inference provider: {e}")
-
-    # Fallback to InferenceProvider / Rule-Based provider
+async def _llm(texts: list[str], lang: Language) -> list[str | None]:
     provider = get_inference_provider()
-
-    system_prompt = f"""You are a professional medical translator. 
-Translate the provided medical facts into {target_lang}. 
-CRITICAL RULES:
-- Maintain all uncertainty. If something says "possible", translate it as "possible".
-- Do not add any new information.
-- Output ONLY the translated values in a JSON array matching the input structure."""
-
-    facts_json = [
-        {
-            "id": str(f.id),
-            "type": f.fact_type.value if hasattr(f.fact_type, "value") else str(f.fact_type),
-            "value": f.value,
-            "status": f.status.value if hasattr(f.status, "value") else str(f.status),
-        }
-        for f in facts
-    ]
-
-    user_prompt = f"Translate these facts to {target_lang}:\n" + json.dumps(facts_json)
-
-    schema = {
-        "type": "object",
-        "properties": {
-            "translated_facts": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "translated_value": {"type": "object"},
-                    },
-                },
-            }
-        },
-        "required": ["translated_facts"],
-    }
-
-    request = StructuredRequest(
-        task="translation_v1",
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        json_schema=schema,
-        context={"target_lang": target_lang},
-    )
-
-    try:
-        raw_output = await provider.generate_structured(request)
-        translated_items = raw_output.get("translated_facts", [])
-
-        # Fallback for rule_based provider
-        if provider.info.name == "rule_based" and not translated_items:
-            lang_map = {
-                "hi": "hi-IN",
-                "gu": "gu-IN",
-                "en": "en-GB",
-                "mr": "mr-IN",
-                "ta": "ta-IN",
-                "te": "te-IN",
-            }
-            mapped_target = lang_map.get(target_lang, target_lang)
-            translator = MyMemoryTranslator(source="en-GB", target=mapped_target)
-
-            async def _translate(text: str) -> str:
-                try:
-                    res = await asyncio.to_thread(translator.translate, text)
-                    return res if res else f"[{target_lang}] {text}"
-                except Exception as ex:
-                    logger.error(f"MyMemoryTranslator failed for text '{text}': {ex}")
-                    return f"[{target_lang}] {text}"
-
-            for f in facts:
-                trans_val = {}
-                for k, v in f.value.items():
-                    if isinstance(v, str) and k in {"name", "text", "raw_text", "instruction", "substance", "kind"}:
-                        trans_val[k] = await _translate(v)
-                    else:
-                        trans_val[k] = v
-
-                translated_items.append({
-                    "id": str(f.id),
-                    "translated_value": trans_val,
-                })
-
-        final_facts = []
-        fact_dict = {str(f.id): f for f in facts}
-        for item in translated_items:
-            fid = item.get("id")
-            original_fact = fact_dict.get(fid)
-            if original_fact:
-                final_facts.append({
-                    "id": fid,
-                    "fact_type": original_fact.fact_type,
-                    "translated_value": item.get("translated_value", {}),
-                    "status": original_fact.status,
-                })
-
-        result = {
-            "case_id": case_id,
-            "language": target_lang,
-            "facts": final_facts,
-        }
-        _TRANSLATION_CACHE[cache_key] = result
-        return result
-    except Exception as e:
-        logger.error(f"Translation failed for case_id={case_id}: {e}")
-        raise e
+    system = load_prompt("translation_v1").replace("{{LANGUAGE}}", LANGUAGE_NAMES[lang])
+    outs = await asyncio.gather(*(provider.generate_text(system, t) for t in texts), return_exceptions=True)
+    return [o if isinstance(o, str) else None for o in outs]
 
 
-async def auto_translate_on_summary_created(
-    db: Session,
-    case_id: str,
-    target_langs: list[str] | None = None,
-) -> None:
-    """
-    Hook executed when a discharge summary is created in the pipeline.
-    Pre-warms translation cache for all supported regional languages:
-    Hindi (hi), Gujarati (gu), Marathi (mr), Tamil (ta), Telugu (te).
-    """
-    if target_langs is None:
-        target_langs = ["hi", "gu", "mr", "ta", "te"]
+async def _deep_translator(texts: list[str], lang: Language) -> list[str | None]:
+    from deep_translator import GoogleTranslator
 
-    google_key = get_settings().google_translate_api_key or os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
-    if not google_key:
-        logger.debug("auto_translate_on_summary_created skipped: GOOGLE_TRANSLATE_API_KEY not set.")
-        return
+    translator = GoogleTranslator(source="en", target=lang.value)
+    # ponytail: blocking client in a worker thread; on timeout the thread is abandoned, not killed.
+    return await asyncio.to_thread(lambda: [translator.translate(t) for t in texts])
 
-    logger.info(f"Auto-translating summary for case_id={case_id} across {target_langs}...")
-    for lang in target_langs:
+
+async def _mymemory(texts: list[str], lang: Language) -> list[str | None]:
+    """Last resort when the free Google endpoint rate-limits this IP (common on shared networks)."""
+    from deep_translator import MyMemoryTranslator
+
+    def one(text: str) -> str | None:
         try:
-            await translate_facts(db, case_id, lang)
-            logger.debug(f"Auto-translated case_id={case_id} into {lang}")
-        except Exception as err:
-            logger.warning(f"Auto-translation on summary creation failed for lang={lang}: {err}")
+            return MyMemoryTranslator(source="en-GB", target=f"{lang.value}-IN").translate(text)
+        except Exception:  # noqa: BLE001 — a failed item is simply left untranslated
+            return None
 
+    return list(await asyncio.gather(*(asyncio.to_thread(one, t) for t in texts)))
+
+
+def _engines() -> list[tuple[str, Engine]]:
+    settings = get_settings()
+    engines: list[tuple[str, Engine]] = []
+    if settings.google_translate_api_key:
+        engines.append(("google_v2", _google_v2))
+    if settings.inference_provider != "rule_based":
+        engines.append(("llm", _llm))
+    engines.append(("deep_translator", _deep_translator))
+    engines.append(("mymemory", _mymemory))
+    return engines
+
+
+async def translate_texts(
+    texts: list[str], target_lang: Language, protected_terms: Sequence[str] = ()
+) -> list[str | None]:
+    """Translate English patient text. Item → None when no engine produced a verified translation."""
+    lang = Language(target_lang)
+    if lang == Language.EN:
+        return list(texts)
+    protected = tuple(sorted({t.strip() for t in protected_terms if t and t.strip()}))
+    results: list[str | None] = [None] * len(texts)
+    pending: dict[int, tuple[str, dict[str, str]]] = {}
+    for i, text in enumerate(texts):
+        if (cached := _CACHE.get((text, lang.value, protected))) is not None:
+            results[i] = cached
+            continue
+        try:
+            masked, mapping = mask(text, protected)
+        except ValueError:
+            continue
+        if not _LETTERS.search(_TOKEN.sub("", masked)):
+            results[i] = text  # nothing translatable (only names/numbers/dates)
+        else:
+            pending[i] = (masked, mapping)
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + TOTAL_TIMEOUT_S
+    for name, engine in _engines():
+        remaining = deadline - loop.time()
+        if not pending or remaining <= 0:
+            break
+        idx = list(pending)
+        try:
+            outs = await asyncio.wait_for(engine([pending[i][0] for i in idx], lang), remaining)
+        except Exception as exc:  # noqa: BLE001 — engine failure must never reach the caller
+            logger.warning(
+                "Translation engine %s failed (%s) for %d items", name, type(exc).__name__, len(idx)
+            )
+            continue
+        accepted = 0
+        for i, out in zip(idx, outs, strict=False):
+            final = unmask(out, texts[i], pending[i][1])
+            if final is None:
+                continue
+            results[i] = final
+            del pending[i]
+            accepted += 1
+            if len(_CACHE) >= _CACHE_MAX:
+                _CACHE.pop(next(iter(_CACHE)))
+            _CACHE[(texts[i], lang.value, protected)] = final
+        logger.info(
+            "Translation engine %s accepted %d/%d items (lang=%s)", name, accepted, len(idx), lang.value
+        )
+    if pending:
+        logger.info("Translation unavailable for %d/%d items (lang=%s)", len(pending), len(texts), lang.value)
+    return results

@@ -251,6 +251,95 @@
         "README.md overhauled with docs copy context."
       ],
       "notes": "Synchronized across repository with complete documentation index."
+    },
+    {
+      "id": "CLX-016",
+      "title": "Audit remediation: backend contract v2 (reviews, care plan, auth, errors, Docker)",
+      "priority": "P0",
+      "status": "done",
+      "owner": "Member 2",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "API_CONTRACTS.md v2 implemented",
+        "Review decisions work and are audited",
+        "Reviewer bearer-key auth",
+        "docker compose builds and runs on Postgres"
+      ],
+      "notes": "121 tests pass on SQLite and Postgres 16; compose stack verified."
+    },
+    {
+      "id": "CLX-017",
+      "title": "Audit remediation: general extraction, honest provenance, conflicts, real evaluation",
+      "priority": "P0",
+      "status": "done",
+      "owner": "Member 3",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Scenarios A/B/C pass through the real pipeline",
+        "No hardcoded drug lists or invented values",
+        "Evaluation computes precision/recall/escalation/unsupported-claim rate"
+      ],
+      "notes": "evaluate_clinical.py: 100% precision/recall, 0% unsupported claims, 2/2 conflicts."
+    },
+    {
+      "id": "CLX-018",
+      "title": "Six-language care plan (en/hi/gu/mr/ta/te) with masked, verified translation",
+      "priority": "P1",
+      "status": "done",
+      "owner": "Member 3 / Member 1",
+      "dependencies": [
+        "CLX-016"
+      ],
+      "acceptance_criteria": [
+        "Only VERIFIED text translated",
+        "Drug names, doses, dates, numbers preserved",
+        "Status badges translated"
+      ],
+      "notes": "Engines: Google v2 (key) -> LLM -> free Google -> MyMemory. Verified live for hi/gu/mr/ta/te."
+    },
+    {
+      "id": "CLX-019",
+      "title": "Frontend: keep original UI, rewire to contract v2, real status badges",
+      "priority": "P0",
+      "status": "done",
+      "owner": "Member 1",
+      "dependencies": [
+        "CLX-016"
+      ],
+      "acceptance_criteria": [
+        "Old design kept (team decision)",
+        "Review submits valid decisions with required rationale",
+        "No 'Verified'/'Standard Dose' on unverified data"
+      ],
+      "notes": "A full redesign was built and reverted at the team's request; saved outside the repo as a patch."
+    },
+    {
+      "id": "CLX-020",
+      "title": "Run the openai_compat provider on real AMD ROCm hardware and record the benchmark",
+      "priority": "P0",
+      "status": "blocked",
+      "owner": "Member 3",
+      "dependencies": [
+        "CLX-017"
+      ],
+      "acceptance_criteria": [
+        "benchmark_rocm.py run on an AMD GPU host",
+        "Results committed with rocm-smi evidence"
+      ],
+      "notes": "Blocked: no AMD GPU in the dev environment. Steps in infra/amd/README.md."
+    },
+    {
+      "id": "CLX-021",
+      "title": "Remaining frontend content clean-up (fake helpline, compliance claims, refund page, legal placeholders, lint errors)",
+      "priority": "P1",
+      "status": "todo",
+      "owner": "Member 1",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "No fake phone numbers or certifications",
+        "eslint clean"
+      ],
+      "notes": "Deferred: team chose to keep the original UI; only status/dose safety fixes applied."
     }
   ]
 }

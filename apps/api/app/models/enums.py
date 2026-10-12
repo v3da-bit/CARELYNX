@@ -114,3 +114,6 @@ class Language(StrEnum):
     EN = "en"
     HI = "hi"
     GU = "gu"
+    MR = "mr"
+    TA = "ta"
+    TE = "te"

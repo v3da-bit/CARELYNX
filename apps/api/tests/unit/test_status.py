@@ -24,7 +24,7 @@ def test_verified_when_evidence_and_quality_pass() -> None:
     decision = _decision()
     assert decision.status == FactStatus.VERIFIED
     assert decision.review_reason is None
-    assert decision.confidence == 1.0
+    assert decision.confidence == 0.95  # min of measured signals, not a hardcoded 1.0
 
 
 def test_missing_evidence_is_human_required() -> None:
@@ -44,6 +44,27 @@ def test_low_page_quality_needs_review() -> None:
     decision = _decision(page_quality=0.40)
     assert decision.status == FactStatus.NEEDS_REVIEW
     assert decision.review_reason == ReviewReason.LOW_TEXT_QUALITY
+
+
+def test_confidence_is_min_of_signals_and_floor_applies() -> None:
+    d = _decision(page_quality=0.95, quote_quality=0.65)
+    assert d.status == FactStatus.NEEDS_REVIEW and d.confidence == 0.65
+    assert d.review_reason == ReviewReason.LOW_CONFIDENCE
+    assert (
+        _decision(page_quality=0.95, quote_quality=0.65, min_fact_confidence=0.6).status
+        == FactStatus.VERIFIED
+    )
+
+
+def test_unparsed_key_field_caps_confidence() -> None:
+    d = _decision(missing_fields=["date"])
+    assert d.status == FactStatus.NEEDS_REVIEW and d.confidence == 0.5
+    assert any("date" in r for r in d.reasons)
+
+
+def test_ocr_read_page_never_verified_even_with_high_confidence() -> None:
+    d = _decision(extraction_method=ExtractionMethod.OCR, ocr_confidence=0.99)
+    assert d.status == FactStatus.NEEDS_REVIEW
 
 
 def test_low_ocr_confidence_needs_review() -> None:

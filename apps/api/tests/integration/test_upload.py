@@ -35,20 +35,28 @@ def test_rejects_spoofed_type(client: TestClient) -> None:
     r = client.post(
         "/api/v1/documents", files={"file": ("evil.pdf", b"MZ\x90\x00 not a pdf", "application/pdf")}
     )
-    assert r.status_code == 415
-    assert r.json()["error"]["code"] == "UNSUPPORTED_FILE_TYPE"
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "UPLOAD_ERROR"
 
 
 def test_rejects_empty_and_oversize(client: TestClient, monkeypatch) -> None:
     r = client.post("/api/v1/documents", files={"file": ("e.pdf", b"", "application/pdf")})
     assert r.status_code == 400
+    assert r.json()["error"]["code"] == "UPLOAD_ERROR"
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "max_upload_mb", 1)
+    # Just over the limit but within multipart overhead → caught by the bounded read.
     big = b"%PDF-" + b"0" * (1024 * 1024 + 10)
     r = client.post("/api/v1/documents", files={"file": ("big.pdf", big, "application/pdf")})
-    assert r.status_code == 413
-    assert r.json()["error"]["code"] == "FILE_TOO_LARGE"
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "UPLOAD_ERROR"
+    # Far over the limit → rejected from Content-Length before the body is parsed.
+    huge = b"%PDF-" + b"0" * (2 * 1024 * 1024)
+    r = client.post("/api/v1/documents", files={"file": ("huge.pdf", huge, "application/pdf")})
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "UPLOAD_ERROR"
+    assert r.headers["X-Request-ID"] and r.headers["X-Content-Type-Options"] == "nosniff"
 
 
 def test_filename_is_sanitized(client: TestClient) -> None:

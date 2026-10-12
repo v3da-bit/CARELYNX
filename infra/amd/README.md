@@ -1,41 +1,47 @@
-# CARELYNX AMD ROCm Integration
+# CARELYNX on AMD (ROCm + vLLM)
 
-This directory contains the deployment configuration necessary to run the **OpenAICompatibleProvider** against a local AMD GPU using vLLM and ROCm.
+CARELYNX talks to any OpenAI-compatible `/v1/chat/completions` endpoint through `OpenAICompatibleProvider`
+(`apps/api/app/ai/openai_compatible.py`). On AMD hardware that endpoint is **vLLM running on ROCm**.
 
-## Prerequisites
+> Honesty rule (CLAUDE.md §4): nothing in this repository has been benchmarked on AMD hardware unless a
+> `benchmark_rocm.py` run on the GPU host says so. Without a ROCm GPU the default is the CPU `rule_based`
+> extractor, and every result is labelled as such.
 
-1.  A compatible AMD GPU (e.g., Radeon RX 7900 XTX, Instinct MI210/MI250/MI300, or supported Ryzen AI integrated graphics).
-2.  Docker with ROCm support enabled.
-3.  A Hugging Face token with access to your target model (e.g., `meta-llama/Llama-3-8B-Instruct`).
+## 1. Start the inference node (Linux host with an AMD Instinct / Radeon GPU and ROCm drivers)
 
-## Running the AMD Inference Node
+```bash
+export HF_TOKEN=...            # optional for Qwen/Qwen2.5-7B-Instruct (not gated)
+docker compose -f infra/amd/docker-compose.rocm.yml up -d
+curl http://localhost:8080/v1/models     # should list Qwen/Qwen2.5-7B-Instruct
+```
 
-1.  Export your Hugging Face Token:
-    ```bash
-    export HF_TOKEN="your_huggingface_token"
-    ```
-2.  Start the vLLM container:
-    ```bash
-    docker-compose up -d
-    ```
-3.  The OpenAI-compatible completions endpoint will be available at `http://localhost:8080/v1/chat/completions`.
-
-## Connecting the Backend
-
-Copy the keys from `infra/amd/.env.amd.example` into the repo-root `.env` so they match `app.core.config.Settings`:
+## 2. Point the API at it (repo-root `.env`, same keys as `.env.example`)
 
 ```env
 INFERENCE_PROVIDER=openai_compat
 INFERENCE_BASE_URL=http://localhost:8080/v1
-INFERENCE_MODEL=meta-llama/Llama-3-8B-Instruct
+INFERENCE_MODEL=Qwen/Qwen2.5-7B-Instruct
 INFERENCE_API_KEY=
-INFERENCE_HARDWARE_LABEL=amd-rocm-vllm
+INFERENCE_HARDWARE_LABEL=amd-rocm-vllm   # only if the endpoint really runs on an AMD GPU
 ```
 
-`INFERENCE_HARDWARE_LABEL` must describe the host that actually served tokens. Do not label Gemini or CPU rule-based runs as AMD.
+`INFERENCE_HARDWARE_LABEL` is recorded in the audit log for every extraction; it must describe the host that
+actually served the tokens. If the endpoint fails (network, malformed JSON, schema violation) the API falls back
+to the rule-based extractor and records `extracted_by = "rule_based (fallback from openai_compat)"` — the fallback
+is never reported as an LLM result. With `INFERENCE_PROVIDER=openai_compat`, translation can also use the LLM
+(prompt `apps/api/app/ai/prompts/translation_v1.md`).
 
-Without a ROCm node, keep `INFERENCE_PROVIDER=rule_based`. The OpenAI-compatible client falls back to `RuleBasedProvider` on connection failure and still extracts only from supplied page text.
+## 3. Measure it
 
-Equivalent compose file: `docker-compose.rocm.yml`.
+Run on the GPU host:
 
-Once running, CARELYNX will use local AMD hardware for structured clinical extraction.
+```bash
+apps/api/.venv/bin/python infra/amd/benchmark_rocm.py --runs 3 --json amd-benchmark.json
+cd apps/api && .venv/bin/python scripts/evaluate_clinical.py --provider openai_compat --json ../../amd-eval.json
+```
+
+`benchmark_rocm.py` runs the real `extraction_v1` prompt over the synthetic fixture documents and reports
+latency, completion tokens/s, schema-valid outputs and verbatim-quote rate, plus a CPU rule-based baseline. It
+labels the endpoint "AMD GPU (ROCm)" only if `rocm-smi`/`amd-smi` on the same host report an AMD GPU and the
+endpoint is local; otherwise it says "unverified hardware" or, if nothing answers, that only the CPU baseline
+was measured. `evaluate_clinical.py` scores scenarios A/B/C end-to-end with the configured provider.

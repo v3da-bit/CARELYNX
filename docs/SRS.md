@@ -32,7 +32,7 @@ This document provides the formal software requirements for the CARELYNX applica
 
 ### Structured Extraction & Evidence
 - **FR-007: Structured Fact Extraction**  
-  The system shall transform raw page text into structured entities: `follow_up_date`, `instruction`, `medication`, and `warning`.
+  The system shall transform raw page text into structured entities: `follow_up`, `medication`, `instruction`, `warning_sign`, `allergy`, `documented_condition`, and `encounter_date`.
 - **FR-008: Verbatim Evidence Verification**  
   Every extracted fact shall contain evidence metadata: `document_id`, `page_number`, `section`, and `snippet`. The system shall verify that the excerpt snippet exists verbatim on the source page.
 - **FR-009: Deterministic Fact Status Calculation**  
@@ -50,11 +50,11 @@ This document provides the formal software requirements for the CARELYNX applica
 - **FR-013: Plain-Language Care Plan Generation**  
   The system shall organize verified facts into an intuitive, chronological patient timeline and categorized care instructions.
 - **FR-014: Source-Preserving Translation**  
-  The system shall provide translations into English (`en`), Hindi (`hi`), and Gujarati (`gu`). The translation engine must preserve all dates, dosages, certainty flags, and review warnings without alteration.
+  The system shall provide the care plan in English (`en`), Hindi (`hi`), Gujarati (`gu`), Marathi (`mr`), Tamil (`ta`), and Telugu (`te`). Only `VERIFIED` text is machine-translated; drug names, dosages, dates and numbers are masked before translation and verified afterwards, and any item failing that check is shown in English. Status labels and review warnings are never weakened.
 
 ### Clinical Review & Auditability
 - **FR-015: Reviewer Decision Workflow**  
-  Authorized reviewers shall be able to review flagged items, inspect side-by-side source evidence, and submit structured decisions (`APPROVE_SOURCE_A`, `APPROVE_SOURCE_B`, `REJECT_BOTH`, `OVERRIDE_MANUAL`).
+  Authorized reviewers shall be able to review flagged items, inspect side-by-side source evidence, and submit structured decisions (`APPROVE`, `REJECT`, `SELECT_SOURCE`, `CORRECT_VALUE`) with a mandatory written rationale; reviewers authenticate with a server-issued key.
 - **FR-016: Immutable Audit Logging**  
   The system shall record an audit log entry for every document processing stage, safety block, conflict detection, and human review resolution.
 - **FR-017: AI Provider Abstraction**  
@@ -91,22 +91,29 @@ This document provides the formal software requirements for the CARELYNX applica
 
 ## 4. API Interface Requirements
 
-All endpoints are prefixed with `/api/v1` and speak JSON.
+All endpoints are prefixed with `/api/v1` and speak JSON. `docs/API_CONTRACTS.md` (v2.0) is the binding contract.
+Access uses the demo role header `X-Carelynx-Role: patient|reviewer` (patient by default); reviewer endpoints
+return `403 FORBIDDEN` for any other role. The reviewer identity is the `reviewer_id` in the resolve body.
 
-| Method | Endpoint | Description | Role / Access |
+| Method | Endpoint | Description | Access |
 |---|---|---|---|
-| `GET` | `/health` | Service health, DB connectivity, storage status | Public |
-| `POST` | `/documents` | Upload multipart document | Patient / Staff |
-| `GET` | `/documents/{id}` | Retrieve document status & metadata | Patient / Staff |
-| `POST` | `/documents/{id}/process`| Trigger OCR, extraction, and validation pipeline | Patient / Staff |
-| `GET` | `/cases/{id}/facts` | Retrieve all extracted facts with evidence | Patient / Staff |
-| `GET` | `/facts/{id}/evidence` | Retrieve raw evidence snippets and page citations | Patient / Staff |
-| `GET` | `/cases/{id}/care-plan` | Retrieve patient-facing care plan (verified only) | Patient / Staff |
-| `POST` | `/cases/{id}/translate` | Translate care plan to target language (`en`, `hi`, `gu`) | Patient / Staff |
-| `GET` | `/reviews` | List active human review cases | Reviewer (`X-Carelynx-Role: reviewer`) |
-| `GET` | `/reviews/{id}` | Inspect review case with conflict data & evidence | Reviewer |
-| `POST` | `/reviews/{id}/resolve` | Submit reviewer resolution decision | Reviewer |
-| `GET` | `/cases/{id}/audit` | Retrieve case audit history | Reviewer / Admin |
+| `GET` | `/health` | Service health, DB connectivity, storage, inference provider | Public |
+| `POST` | `/cases` | Create an empty case | Patient |
+| `GET` | `/cases/{id}` | Case, documents and fact/review counts | Patient (case UUID) |
+| `GET` | `/cases/{id}/facts` | All facts of the case, each with evidence | Patient (case UUID) |
+| `GET` | `/cases/{id}/care-plan?lang=` | Server-formatted care plan; REJECTED excluded, only VERIFIED translated (`en`, `hi`, `gu`, `mr`, `ta`, `te`) | Patient (case UUID) |
+| `GET` | `/cases/{id}/fhir` | Demo FHIR R4 Bundle of VERIFIED medications | Patient (case UUID) |
+| `GET` | `/cases/{id}/audit` | Case audit history, newest first | Reviewer (bearer) |
+| `POST` | `/documents` | Upload multipart document (PDF/PNG/JPEG ≤ 10 MB) | Patient |
+| `GET` | `/documents/{id}` | Document status & metadata | Patient (case UUID) |
+| `POST` | `/documents/{id}/process` | Run OCR, extraction, evidence, safety and conflict pipeline | Patient |
+| `GET` | `/documents/{id}/pages/{n}` | Page text for the evidence viewer | Patient (case UUID) |
+| `GET` | `/documents/{id}/file` | Original file, private + audited | Patient / Reviewer |
+| `GET` | `/facts/{id}` | One fact | Patient (case UUID) |
+| `GET` | `/facts/{id}/evidence` | Evidence snippets and page citations | Patient (case UUID) |
+| `GET` | `/reviews?status=OPEN\|RESOLVED` | Review queue | Reviewer (bearer) |
+| `GET` | `/reviews/{id}` | Review with facts, evidence, conflict and documents | Reviewer (bearer) |
+| `POST` | `/reviews/{id}/resolve` | Submit `APPROVE` / `REJECT` / `SELECT_SOURCE` / `CORRECT_VALUE` with required notes | Reviewer (bearer) |
 
 ---
 
@@ -143,18 +150,23 @@ All endpoints are prefixed with `/api/v1` and speak JSON.
 
 ## 6. Error Handling Taxonomy
 
+Every error uses `{"error": {"code", "message", "request_id"}}`; stack traces and paths are never returned.
+
 | Error Code | HTTP Status | Meaning |
 |---|---|---|
-| `UPLOAD_ERROR` | 400 | Invalid file extension, failed magic-byte check, or size > 10MB |
-| `OCR_ERROR` | 422 | Document unreadable or OCR processing failed |
-| `PARSING_ERROR` | 422 | PDF corrupted or structure unparsable |
-| `MODEL_ERROR` | 502 | AI inference engine unreachable or timeout |
-| `VALIDATION_ERROR`| 422 | Pydantic schema validation failure |
-| `EVIDENCE_ERROR` | 422 | Snippet text cannot be verified against source page |
-| `CONFLICT_ERROR` | 409 | Document facts contradict existing case records |
-| `REVIEW_REQUIRED`| 423 | Action blocked until clinical review resolution |
-| `AUTH_ERROR` | 401 / 403 | Missing or unauthorized role header |
-| `INTERNAL_ERROR` | 500 | Unhandled server exception (sanitized) |
+| `UPLOAD_ERROR` | 400 | Unsupported type, failed magic-byte check, empty file, or size > 10 MB |
+| `VALIDATION_ERROR` | 422 | Request body/query fails validation (e.g. unknown `lang`, missing `resolution_notes`) |
+| `NOT_FOUND` | 404 | Unknown case / document / page / fact / review |
+| `AUTH_ERROR` | 401 | Reserved for real authentication (not used by the demo role header) |
+| `FORBIDDEN` | 403 | Authenticated but not allowed |
+| `INVALID_STATE` | 409 | e.g. processing an already-processed document, resolving a resolved review |
+| `CONFLICT_ERROR` | 409 | Review decision does not fit the review (e.g. `APPROVE` on a conflict review) |
+| `REVIEW_REQUIRED` | 423 | Action blocked until clinical review is resolved |
+| `OCR_ERROR` | 422 | Stored on a document as `error_code` when OCR crashed (processing returns 200 `FAILED`) |
+| `PARSING_ERROR` | 422 | Stored on a document as `error_code` when the PDF/image could not be parsed |
+| `MODEL_ERROR` | 502 | Inference failed and no safe fallback produced a result |
+| `EVIDENCE_ERROR` | 422 | Reserved: a fact's evidence cannot be verified |
+| `INTERNAL_ERROR` | 500 | Anything unhandled (sanitized message) |
 
 ---
 
@@ -167,5 +179,5 @@ The CARELYNX MVP is accepted when all criteria below are verified:
 4. Non-medical or unsupported assertions are flagged or rejected.
 5. Injected conflicting documents automatically create a review case and prevent automatic display.
 6. Clinical reviewers can inspect side-by-side evidence on the `/review` route and submit decisions.
-7. Care plan timeline displays correctly in English, Hindi, and Gujarati without fact degradation.
+7. Care plan timeline displays correctly in all six supported languages without fact degradation.
 8. The system runs cleanly with zero cloud lock-in via SQLite/FastAPI/Next.js.

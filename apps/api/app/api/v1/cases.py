@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
-import uuid
-
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.security import require_reviewer
 from app.db.session import get_db
-from app.models import Fact, ReviewCase
-from app.models.enums import FactStatus, ReviewStatus
-from app.schemas.document import CaseCounts, CaseCreated, CaseOut, DocumentOut
-from app.schemas.fact import FactResponse
+from app.models import AuditLog, Fact
+from app.models.enums import FactStatus, FactType, Language
+from app.schemas.care_plan import CarePlanResponse
+from app.schemas.document import CaseCreated, CaseOut, DocumentOut
+from app.schemas.fact import FactWithEvidence
+from app.schemas.review import AuditLogOut
+from app.services import care_plan
 from app.services import documents as doc_service
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -27,26 +30,6 @@ def create_case(db: Session = Depends(get_db)) -> CaseCreated:
     return CaseCreated.model_validate(case)
 
 
-def case_counts(db: Session, case_id: uuid.UUID) -> CaseCounts:
-    rows = db.execute(
-        select(Fact.status, func.count()).where(Fact.case_id == case_id).group_by(Fact.status)
-    ).all()
-    by_status = {status: n for status, n in rows}
-    open_reviews = db.scalar(
-        select(func.count())
-        .select_from(ReviewCase)
-        .where(ReviewCase.case_id == case_id, ReviewCase.status == ReviewStatus.OPEN)
-    )
-    return CaseCounts(
-        verified=by_status.get(FactStatus.VERIFIED, 0),
-        needs_review=by_status.get(FactStatus.NEEDS_REVIEW, 0),
-        human_required=by_status.get(FactStatus.HUMAN_REQUIRED, 0),
-        conflict_detected=by_status.get(FactStatus.CONFLICT_DETECTED, 0),
-        rejected=by_status.get(FactStatus.REJECTED, 0),
-        open_reviews=open_reviews or 0,
-    )
-
-
 @router.get("/{case_id}", response_model=CaseOut)
 def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
     case = doc_service.get_case(db, case_id)
@@ -55,61 +38,66 @@ def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
         status=case.status,
         created_at=case.created_at,
         documents=[DocumentOut.model_validate(d) for d in case.documents],
-        counts=case_counts(db, case.id),
+        counts=care_plan.case_counts(db, case.id),
     )
 
-@router.get("/{case_id}/facts", response_model=list[FactResponse])
-def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
-    case = doc_service.get_case(db, case_id)
-    return db.scalars(
-        select(Fact).where(Fact.case_id == case_id)
-    ).all()
 
-@router.post("/{case_id}/translate")
-async def translate_case(case_id: uuid.UUID, target_lang: str, db: Session = Depends(get_db)) -> Any:
-    case = doc_service.get_case(db, case_id)
-    from app.services.translation import translate_facts
-    result = await translate_facts(db, str(case_id), target_lang)
-    return result
+@router.get("/{case_id}/facts", response_model=list[FactWithEvidence])
+def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[Fact]:
+    doc_service.get_case(db, case_id)
+    return care_plan.case_facts(db, case_id)
+
+
+@router.get("/{case_id}/care-plan", response_model=CarePlanResponse)
+async def get_care_plan(
+    case_id: uuid.UUID, lang: Language = Query(default=Language.EN), db: Session = Depends(get_db)
+) -> CarePlanResponse:
+    return await care_plan.build_care_plan(db, case_id, lang)
+
+
+@router.get("/{case_id}/audit", response_model=list[AuditLogOut], dependencies=[Depends(require_reviewer)])
+def get_case_audit(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[AuditLog]:
+    doc_service.get_case(db, case_id)
+    return list(
+        db.scalars(
+            select(AuditLog)
+            .where(AuditLog.case_id == case_id)
+            .order_by(AuditLog.created_at.desc(), AuditLog.id)
+        ).all()
+    )
+
 
 @router.get("/{case_id}/fhir")
-def export_fhir(case_id: uuid.UUID, db: Session = Depends(get_db)) -> Any:
-    """Mock FHIR Bundle Export for Phase 3 (Hospital Integration)"""
+def export_fhir(case_id: uuid.UUID, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Demo FHIR R4 Bundle of VERIFIED medication facts. Not a certified FHIR interface."""
     case = doc_service.get_case(db, case_id)
-    facts = db.scalars(select(Fact).where(Fact.case_id == case_id)).all()
-    
-    bundle: dict[str, Any] = {
-        "resourceType": "Bundle",
-        "type": "collection",
-        "entry": [
-            {
-                "resource": {
-                    "resourceType": "Patient",
-                    "id": str(case.patient_id) if case.patient_id else "unknown"
-                }
-            }
-        ]
-    }
-    for fact in facts:
-        if fact.fact_type == "medication":
-            bundle["entry"].append({
-                "resource": {
-                    "resourceType": "MedicationStatement",
-                    "id": str(fact.id),
-                    "status": "active",
-                    "medicationCodeableConcept": {
-                        "text": fact.value.get("name", "Unknown Medication")
-                    }
-                }
-            })
-    return bundle
-
-@router.post("/{case_id}/reminders/sms")
-def send_sms_reminders(case_id: uuid.UUID, phone: str, db: Session = Depends(get_db)) -> dict:
-    """Mock Twilio SMS dispatcher for Phase 3 (Automated Reminders)"""
-    from app.core.errors import AppError, ErrorCode
-    if not phone or not phone.strip():
-        raise AppError(ErrorCode.VALIDATION_ERROR, "Phone number must not be empty.", 400)
-    case = doc_service.get_case(db, case_id)
-    print(f"[TWILIO MOCK] Dispatching Care Plan SMS to {phone} for case {case.id}")
-    return {"status": "dispatched", "phone": phone, "message": "Mock SMS sent successfully"}
+    patient_ref = {"reference": f"Patient/{case.patient_id}"} if case.patient_id else None
+    entries: list[dict[str, Any]] = []
+    if patient_ref:
+        entries.append({"resource": {"resourceType": "Patient", "id": str(case.patient_id)}})
+    meds = db.scalars(
+        select(Fact)
+        .where(
+            Fact.case_id == case_id,
+            Fact.fact_type == FactType.MEDICATION,
+            Fact.status == FactStatus.VERIFIED,
+        )
+        .order_by(Fact.created_at, Fact.id)
+    ).all()
+    for fact in meds:
+        v = fact.value or {}
+        if not v.get("name"):
+            continue  # never emit a placeholder drug name
+        resource: dict[str, Any] = {
+            "resourceType": "MedicationStatement",
+            "id": str(fact.id),
+            "status": "unknown",  # the document lists it; CARELYNX does not know whether it is being taken
+            "medicationCodeableConcept": {"text": v["name"]},
+        }
+        if patient_ref:
+            resource["subject"] = patient_ref
+        dosage = " ".join(str(v[k]) for k in ("strength", "frequency", "timing", "duration") if v.get(k))
+        if dosage:
+            resource["dosage"] = [{"text": dosage}]
+        entries.append({"resource": resource})
+    return {"resourceType": "Bundle", "type": "collection", "entry": entries}

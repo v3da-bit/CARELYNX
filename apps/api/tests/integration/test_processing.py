@@ -54,8 +54,9 @@ def test_corrupt_pdf_fails_explicitly(client: TestClient) -> None:
     r = client.post(f"/api/v1/documents/{doc['id']}/process")
     assert r.status_code == 200
     assert r.json()["status"] == "FAILED"
+    assert r.json()["error_code"] == "PARSING_ERROR"
     meta = client.get(f"/api/v1/documents/{doc['id']}").json()
-    assert meta["error_code"] == "PDF_PARSE_ERROR"
+    assert meta["error_code"] == "PARSING_ERROR"
 
 
 def test_unknown_document_404(client: TestClient) -> None:

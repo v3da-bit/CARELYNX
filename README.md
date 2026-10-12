@@ -28,7 +28,7 @@ CARELYNX acts as an **information-navigation and patient-communication intellige
 3. **Structured Fact Extraction:** Identifies explicit follow-up dates, medications, instructions, and warnings.
 4. **Verbatim Evidence Linking:** Every statement links directly to its source document, page, and excerpt snippet.
 5. **Conflict & Uncertainty Detection:** If two documents state conflicting dates, the system flags the contradiction and escalates it to human review rather than guessing.
-6. **Patient Care Plan:** Displays an intuitive chronological timeline, categorized care instructions, and multilingual toggles (English, Hindi, Gujarati).
+6. **Patient Care Plan:** Displays an intuitive chronological timeline, categorized care instructions, and multilingual toggles (English, Hindi, Gujarati, Marathi, Tamil, Telugu).
 7. **Clinical Reviewer Workspace:** Provides staff with a side-by-side document comparator to resolve ambiguities.
 
 ---
@@ -235,11 +235,12 @@ CARELYNX includes native support for AMD-accelerated inference:
    ```
 2. Configure `.env`:
    ```env
-   INFERENCE_PROVIDER=openai_compatible
-   OPENAI_COMPATIBLE_BASE_URL=http://localhost:8080/v1
-   OPENAI_COMPATIBLE_MODEL=meta-llama/Llama-3-8B-Instruct
+   INFERENCE_PROVIDER=openai_compat
+   INFERENCE_BASE_URL=http://localhost:8080/v1
+   INFERENCE_MODEL=Qwen/Qwen2.5-7B-Instruct
+   INFERENCE_HARDWARE_LABEL=amd-rocm-vllm
    ```
-3. Restart the API server. Inferences will execute directly on AMD GPUs.
+3. Restart the API server, then benchmark with `python infra/amd/benchmark_rocm.py` (see [`infra/amd/README.md`](infra/amd/README.md)). It labels results "AMD" only when `rocm-smi`/`amd-smi` detect an AMD GPU. **No AMD run has been recorded yet** — the numbers measured so far are the CPU rule-based baseline.
 
 ---
 

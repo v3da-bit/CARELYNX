@@ -115,15 +115,31 @@ export interface FactResponse {
 export const getCaseFacts = (caseId: string) => api<FactResponse[]>(`/cases/${caseId}/facts`);
 export const getFact = (factId: string) => api<FactResponse>(`/facts/${factId}`);
 
-export interface TranslatedFact {
-  id: string;
-  fact_type: string;
-  translated_value: Record<string, unknown>;
-  status: string;
+export interface CarePlanItem extends FactResponse {
+  display: { title: string; subtitle: string | null; date: string | null };
+  translation_status: "source" | "translated" | "pending_review" | "unavailable";
 }
 
-export const translateCase = (caseId: string, lang: string) => 
-  api<{ case_id: string, language: string, facts: TranslatedFact[] }>(`/cases/${caseId}/translate?target_lang=${lang}`, { method: "POST" });
+export interface CarePlan {
+  case_id: string;
+  language: string;
+  sections: Record<string, CarePlanItem[]>;
+}
+
+export const getCarePlan = (caseId: string, lang: string) =>
+  api<CarePlan>(`/cases/${caseId}/care-plan?lang=${lang}`);
+
+export type TranslatedText = { title: string; subtitle: string | null; date: string | null };
+
+/** Server-translated text for VERIFIED facts only (others stay in English until reviewed). */
+export const translateCase = async (caseId: string, lang: string): Promise<Record<string, TranslatedText>> => {
+  const plan = await getCarePlan(caseId, lang);
+  const out: Record<string, TranslatedText> = {};
+  for (const item of Object.values(plan.sections).flat()) {
+    if (item.translation_status === "translated") out[item.id] = item.display;
+  }
+  return out;
+};
 
 export interface EvidenceResponse {
   id: string;
@@ -155,15 +171,16 @@ export const getOpenReviews = () => api<ReviewCaseResponse[]>("/reviews", { head
 export const getReview = (id: string) => api<ReviewCaseResponse>(`/reviews/${id}`, { headers: { "X-Carelynx-Role": "reviewer" }});
 
 export interface ResolveReviewRequest {
-  decision: "approve" | "reject" | "edit";
-  resolution_notes?: string;
+  decision: "APPROVE" | "REJECT" | "SELECT_SOURCE" | "CORRECT_VALUE";
+  resolution_notes: string;
   reviewer_id: string;
   winning_fact_id?: string;
+  corrected_value?: Record<string, unknown>;
 }
 
-export const resolveReview = (id: string, req: ResolveReviewRequest) => 
-  api<ReviewCaseResponse>(`/reviews/${id}/resolve`, { 
-    method: "POST", 
+export const resolveReview = (id: string, req: ResolveReviewRequest) =>
+  api<ReviewCaseResponse>(`/reviews/${id}/resolve`, {
+    method: "POST",
     body: JSON.stringify(req),
     headers: { "Content-Type": "application/json", "X-Carelynx-Role": "reviewer" }
   });

@@ -10,7 +10,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_ROOT = Path(__file__).resolve().parents[2]  # apps/api
-REPO_ROOT = API_ROOT.parents[1]
+REPO_ROOT = API_ROOT.parent.parent  # .parents[1] raises IndexError when the API lives at /app
 
 
 class Settings(BaseSettings):
@@ -26,11 +26,11 @@ class Settings(BaseSettings):
 
     storage_backend: Literal["local"] = "local"
     storage_local_dir: str = "./var/storage"
-    max_upload_mb: int = Field(default=15, ge=1, le=100)
+    max_upload_mb: int = Field(default=10, ge=1, le=100)
 
     # `openai_compat` is the settings key; `openai_compatible` is accepted as a docs alias.
     inference_provider: Literal["rule_based", "openai_compat", "openai_compatible"] = "rule_based"
-    inference_base_url: str = "http://localhost:8001/v1"
+    inference_base_url: str = "http://localhost:8080/v1"
     inference_model: str = "Qwen/Qwen2.5-7B-Instruct"
     inference_api_key: str = ""
     inference_timeout_s: float = 60.0

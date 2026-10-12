@@ -11,6 +11,50 @@
 ## Task Commit History
 
 ```text
+commit (uncommitted — branch fix/audit-pending-work)
+Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
+Date:   2026-10-12 19:00:00 +0530
+
+    fix(all): remediate requirements audit across Member 1/2/3 and ship six-language care plan
+
+    - Context / Problem addressed:
+      A code-level audit found the "100% complete" status was inaccurate: demo Scenarios B/C produced
+      no facts or conflicts (extractor overfit to sample PDFs, hardcoded drug list, invented values);
+      review decisions were rejected by the API and approvals rejected facts; the REVIEW_RESOLVED audit
+      row was never committed; care-plan/audit endpoints were missing; reviewer "auth" was a spoofable
+      header; docker-compose referenced missing Dockerfiles; the UI showed unverified facts as verified
+      and invented a "Standard Dose"; translation sent unverified text to third parties unmasked.
+    - CORRECTION of earlier entries: the "8.6ms latency" / "sub-10ms on AMD hardware" figures logged on
+      2026-10-11 timed the CPU regex extractor only. No AMD GPU run has been recorded (CLX-020, blocked).
+    - Architectural decisions & changes made:
+      1. docs/API_CONTRACTS.md v2.0 is the binding contract (decisions APPROVE/REJECT/SELECT_SOURCE/
+         CORRECT_VALUE, error taxonomy, GET /cases/{id}/care-plan, GET /cases/{id}/audit; POST /translate
+         and the SMS mock removed). A bearer-key reviewer login was built, then reverted at the team's
+         request: reviewer access stays on the X-Carelynx-Role header with reviewer_id in the body.
+      2. Member 2: services/reviews.py + services/care_plan.py, audit in the same transaction, upload
+         limit 10 MB enforced early, FAILED-state handling instead of stuck PROCESSING, Dockerfiles +
+         compose verified on Postgres 16.
+      3. Member 3: general rule-based extractor (page-accurate verbatim quotes), honest fallback
+         provenance, conflict grouping by (type, subject), HIGH severity for high-risk fields, narrower
+         safety policy, computed confidence, OCR never auto-verified, real evaluation script, honest
+         AMD benchmark, translate_texts() with masking + post-verification for en/hi/gu/mr/ta/te
+         (Google v2 -> LLM -> free Google -> MyMemory), VERIFIED-only.
+      4. Member 1: a full redesign was built, then reverted at the team's request; the original UI is
+         kept, rewired to contract v2 (care-plan translation, valid decisions, required rationale) with
+         translated status badges and no invented dose.
+      5. Files removed during the audit (ryzen-ai.py, benchmark_inference.py, infra/amd/docker-compose.yml,
+         qa_probe.py, qa_test_suite.py, test_translator.py, scripts/evaluate.py, scripts/setup_mock_demo.py)
+         were restored at the team's request.
+    - Files created / modified: see `git diff --stat` on branch fix/audit-pending-work.
+    - Verification & testing performed:
+      - apps/api: pytest 121 passed (SQLite; also 121 passed on Postgres 16 container).
+      - scripts/evaluate_clinical.py: A/B/C PASS, precision/recall 100%, unsupported claims 0%, conflicts 2/2.
+      - Live API: hi/gu/mr/ta/te care plans translated with drug names/doses intact; SELECT_SOURCE
+        resolved and audited.
+      - apps/web: tsc clean, next build OK. Pre-existing eslint errors in the original UI remain (CLX-021).
+    - Alignment check:
+      Confirmed with docs/PRD.md and docs/SAFETY.md; no diagnosis/dose advice; no fabricated data.
+
 commit 85fb9ca65a1ada2c5279861579105d40ffb8bf5d
 Author: Gemini 3.1 Pro via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 17:36:00 +0530

@@ -1,105 +1,84 @@
-# CARELYNX — Hackathon Live Demonstration & Presentation Script
+# CARELYNX — Demo Walkthrough
 
-> **Document Version:** 1.0.0  
-> **Team:** Member 1 (Frontend UI Lead), Member 2 (Backend Systems Lead), Member 3 (AI, Safety & Evaluation Lead)  
-> **Primary Use Case:** AI-Powered Healthcare Document Navigation & Conflict Resolution  
-> **Target Audience:** Clinical Judges, Medical Safety Auditors, Technical Evaluators
-
----
-
-## 1. Setup & Environment Verification (Pre-Flight)
-
-Before beginning the live presentation, verify both backend and frontend services are active:
-
-1. **Backend Status:**  
-   `GET http://127.0.0.1:8000/api/v1/health`  
-   *Expected response:* `{"status": "ok", "database": "connected", "storage": "local_private", "inference_provider": "rule_based"}`
-
-2. **Frontend Status:**  
-   `GET http://localhost:3000`  
-   *Expected response:* HTTP 200 (Patient Navigation Portal)
-
-3. **Sample Demonstration Files (Located in project root):**
-   - `sample_medical_record.pdf` — Hospital discharge summary (Eleanor Vance, Lisinopril 10mg, follow-up Oct 14).
-   - `sample_conflicting_prescription.pdf` — Pharmacy verification slip (Eleanor Vance, Lisinopril 20mg, follow-up Oct 18).
+> **Document Version:** 2.0.0
+> **Team:** Member 1 (Frontend), Member 2 (Backend), Member 3 (AI, Safety & Evaluation)
+> **Rule for presenters:** say only what the system actually did on the machine in front of you. Every document
+> below is synthetic. Unless the AMD benchmark was run on a ROCm GPU host during the demo, describe the AMD path as
+> "implemented and deployable", not as measured.
 
 ---
 
-## 2. 5-Minute Live Demo Presentation Flow
-
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        CARELYNX DEMO TIMELINE                          │
-├─────────────┬──────────────────────────┬───────────────────────────────┤
-│ Minute 01   │ The Problem & Invariants │ Clinical fragmentation & risk │
-│ Minute 02   │ Patient Experience       │ Clean upload & evidence drawer│
-│ Minute 03   │ Conflict Detection Engine│ Lisinopril 10mg vs 20mg flag  │
-│ Minute 04   │ Clinical Reviewer Portal │ Side-by-side adjudication     │
-│ Minute 05   │ AMD Hardware & Safety    │ Sub-10ms inference & zero-hall│
-└─────────────┴──────────────────────────┴───────────────────────────────┘
-```
-
-### Act 1: The Clinical Challenge (0:00 – 1:00)
-- **Speaker:** Lead Presenter
-- **Talking Points:**
-  - *"Hospital discharge summaries are notoriously dense and frequently contradict outpatient pharmacy slips. LLM hallucination and autonomous dosage changes in healthcare can be fatal."*
-  - *"CARELYNX solves this with three non-negotiable principles: zero unlinked claims (every fact must have verbatim page evidence), zero autonomous medical decisions (deterministic safety guardrails), and complete clinical reviewer adjudication."*
-
-### Act 2: Patient Navigation & Verbatim Evidence (1:00 – 2:00)
-- **Screen:** Navigate to `http://localhost:3000`
-- **Actions:**
-  1. Drag and drop `sample_medical_record.pdf` onto the patient upload zone.
-  2. Watch the real-time processing feed: Ingestion -> Content Sniffing -> Page Extraction -> Verbatim Matcher.
-  3. Show the resulting Care Plan:
-     - **Discharge Medications:** Azithromycin 500mg, Lisinopril 10mg, Acetaminophen 500mg.
-     - **Follow-up Appointments:** Primary Care Physician (Oct 14, 2026), Pulmonology (Oct 16, 2026).
-  4. **Click on Lisinopril 10mg**: The slide-over Evidence Drawer opens, highlighting the exact verbatim snippet from page 1 of the original discharge PDF.
-
-### Act 3: Multi-Document Discrepancy & Conflict Detection (2:00 – 3:00)
-- **Screen:** Still on `http://localhost:3000` (same patient case)
-- **Actions:**
-  1. Upload the second document: `sample_conflicting_prescription.pdf`.
-  2. The system processes the pharmacy slip and runs the deterministic `detect_conflicts()` engine.
-  3. **Visual Alert:** Lisinopril changes from a green verified state to an amber alert badge (`CONFLICT_DETECTED`):
-     - Source A (Discharge Summary): Lisinopril **10mg**.
-     - Source B (Pharmacy Slip): Lisinopril **20mg**.
-  4. A clinical review ticket is automatically created in the reviewer queue.
-
-### Act 4: Clinical Reviewer Workspace (3:00 – 4:00)
-- **Screen:** Open `http://localhost:3000/review` (Role: Clinical Reviewer)
-- **Actions:**
-  1. Show the Review Queue on the left sidebar: Case `Eleanor Vance` has 2 active conflict tickets (Lisinopril dosage conflict and PCP appointment date conflict).
-  2. Click the Lisinopril conflict: The Dual-Document Clinical Comparator displays both original document quotes side by side.
-  3. Click **"Adjudicate / Resolve"**:
-     - Choose the winning fact (e.g., approve 10mg per hospital physician's discharge notes).
-     - Enter clinical resolution notes.
-     - Submit: The conflict status transitions to `RESOLVED` and an immutable entry is recorded in the audit trail.
-  4. Return to the patient view: Lisinopril is now updated with verified human approval.
-
-### Act 5: Multilingual Voice & Hardware Edge Acceleration (4:00 – 5:00)
-- **Screen:** Toggle language selector (Hindi / Gujarati)
-- **Actions:**
-  1. Switch language to **Hindi (`hi`)** or **Gujarati (`gu`)**:
-     - Clinical instructions translate naturally (*"कम नमक वाला आहार"*, *"भारी वजन उठाने से बचें"*).
-     - Drug names, dosages, and dates remain strictly intact to prevent medical distortion.
-  2. Highlight Hardware & Reliability metrics:
-     - Run `python infra/amd/benchmark_rocm.py` in terminal: show **sub-10ms deterministic inference** on AMD hardware.
-     - Run `python apps/api/scripts/evaluate_clinical.py`: show **100% evidence precision** and **100% conflict detection recall**.
-
----
-
-## 3. Quick Reference Demo Commands
+## 1. Pre-flight
 
 ```bash
-# 1. Reset / Seed Demo Data (Creates fresh demo case)
-python apps/api/scripts/setup_mock_demo.py
+python run.py dev                                  # API on :8000, web on :3000
+curl http://127.0.0.1:8000/api/v1/health           # status ok, inference_provider rule_based (default)
 
-# 2. Run Clinical Evaluation Benchmark
-python apps/api/scripts/evaluate_clinical.py
+# Write the scenario PDFs (needs the dev requirements: reportlab)
+cd apps/api && .venv/bin/python -m demo.fixtures --out ../../tests/fixtures/generated
+```
 
-# 3. Run AMD Hardware Benchmark
-python infra/amd/benchmark_rocm.py
+Files (all fictional, from `apps/api/demo/fixtures.py`):
 
-# 4. Run Pytest Suite (27 passing tests)
-cd apps/api && .\.venv\Scripts\python.exe -m pytest -v
+| Scenario | Files | What it shows |
+|---|---|---|
+| A — Normal | `A_discharge_summary.pdf`, `A_prescription.pdf`, `A_follow_up_letter.pdf` | Care plan with evidence, follow-up 14 Oct 2026, 3 medications, allergy, 3 instructions, 3 warning signs |
+| B — Bad scan | `B_prescription_scanned.pdf` | `Metf0rmin 5OO mg … tw?ce dai1y`, `1? Oct` — CARELYNX will not guess |
+| C — Conflicts | `C_discharge_summary.pdf`, `C_follow_up_letter.pdf`, `C_prescription.pdf` | Follow-up 14 vs 16 Oct and atorvastatin 40 vs 20 mg → two conflicts, human review |
+
+The repo-root samples `sample_medical_record.pdf` + `sample_conflicting_prescription.pdf` also work (Lisinopril
+10 mg vs 20 mg and PCP follow-up 14 vs 18 Oct → two conflicts).
+
+---
+
+## 2. Five-minute flow
+
+### Act 1 — The problem (0:00–0:45)
+Discharge paperwork is long, split across documents, sometimes contradictory, and usually English-only.
+CARELYNX's promise: *if a statement cannot be supported by source evidence, it is not presented as fact.*
+
+### Act 2 — Scenario A: a clear care plan with evidence (0:45–1:45)
+1. Open `http://localhost:3000`, upload the three `A_*` files into one case.
+2. Show the care plan: follow-up **14 Oct 2026, 10:30 AM, Pulmonology OPD, Dr. R. Mehta**; Azithromycin 500 mg,
+   Paracetamol 500 mg, Pantoprazole 40 mg; allergy Sulfa drugs; instructions and warning signs — all ✓ Verified.
+3. Click any item: the evidence drawer shows the document, the **real page** (the follow-up is on page 2 of the
+   summary) and the verbatim snippet.
+
+### Act 3 — Scenario B: a bad scan is flagged, not guessed (1:45–2:30)
+1. Upload `B_prescription_scanned.pdf` in a new case.
+2. Show: the page is flagged `SUSPECTED_OCR_ERRORS`; Amlodipine 5 mg appears as ⚠ Needs review; the Metformin line
+   and the `1? Oct` follow-up are 🔴 Human review required with unreadable fields left empty.
+3. Say: *"CARELYNX will not guess."* No item from this document is shown as verified.
+
+### Act 4 — Scenario C: conflicts go to a human (2:30–3:45)
+1. Upload the three `C_*` files into one case.
+2. Show two `CONFLICT DETECTED` items: follow-up (14 vs 16 Oct) and atorvastatin (40 mg vs 20 mg). Aspirin, which
+   agrees across documents, stays verified. CARELYNX does not pick a winner.
+3. Open `http://localhost:3000/review`. Each conflict is a HIGH
+   severity review with both sources side by side.
+4. Resolve one with `SELECT_SOURCE` and a written note; show the audit trail entry and the updated care plan.
+
+### Act 5 — Languages and evaluation (3:45–5:00)
+1. Switch the care plan to Hindi, Gujarati, Marathi, Tamil or Telugu. Only verified items are translated; drug
+   names, doses, dates, times and numbers are masked before translation and verified afterwards, so they appear
+   unchanged. Items under review stay in English marked "pending review"; if no translation engine is reachable
+   the English text is shown with "translation unavailable" (it is never machine-guessed).
+2. Run the evaluation in a terminal and read the table aloud as printed:
+   ```bash
+   cd apps/api && .venv/bin/python scripts/evaluate_clinical.py
+   ```
+   It reports, per scenario, extraction precision/recall, evidence correctness, unsupported-claim rate (must be 0),
+   conflict recall, escalation correctness, latency and which provider produced the facts.
+3. AMD: explain the path (vLLM on ROCm behind the same `InferenceProvider`, `infra/amd/README.md`). If — and only
+   if — you are on a ROCm GPU host, run `python infra/amd/benchmark_rocm.py` and quote its output; otherwise state
+   that the CPU rule-based baseline is what was measured.
+
+---
+
+## 3. Quick reference
+
+```bash
+cd apps/api && .venv/bin/python -m pytest -q                       # backend tests
+cd apps/api && .venv/bin/python scripts/evaluate_clinical.py       # scenario A/B/C evaluation (temp DB)
+apps/api/.venv/bin/python infra/amd/benchmark_rocm.py              # endpoint benchmark + CPU baseline
 ```

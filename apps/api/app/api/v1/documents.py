@@ -50,7 +50,7 @@ async def process_document(
     """Runs processing → extraction → evidence → safety synchronously; returns the resulting status."""
     doc = doc_service.get_document(db, document_id)
     doc = await pipeline.run_document(db, storage, doc, ocr=get_ocr_engine())
-    return ProcessResponse(document_id=doc.id, status=doc.processing_status)
+    return ProcessResponse(document_id=doc.id, status=doc.processing_status, error_code=doc.error_code)
 
 
 @router.get("/{document_id}", response_model=DocumentOut)
