@@ -111,6 +111,28 @@ function HomeContent() {
       }
     };
 
+    const handleHomeEvent = () => {
+      if (activeCase) {
+        setActiveCase(null);
+        setFacts([]);
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const handleFeaturesEvent = () => {
+      if (activeCase) {
+        setActiveCase(null);
+        setFacts([]);
+        setTimeout(() => {
+          const el = document.getElementById("features");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        }, 120);
+      } else {
+        const el = document.getElementById("features");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+
     const handleCarePlanEvent = () => {
       if (activeCase) {
         const el = document.getElementById("care-plan");
@@ -130,6 +152,8 @@ function HomeContent() {
     };
 
     window.addEventListener("carelynx:upload", handleUploadEvent);
+    window.addEventListener("carelynx:home", handleHomeEvent);
+    window.addEventListener("carelynx:features", handleFeaturesEvent);
     window.addEventListener("carelynx:careplan", handleCarePlanEvent);
     window.addEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
 
@@ -147,10 +171,16 @@ function HomeContent() {
       handlePrescriptionsEvent();
     } else if (action === "care-plan") {
       handleCarePlanEvent();
+    } else if (action === "features") {
+      handleFeaturesEvent();
+    } else if (action === "home") {
+      handleHomeEvent();
     }
 
     return () => {
       window.removeEventListener("carelynx:upload", handleUploadEvent);
+      window.removeEventListener("carelynx:home", handleHomeEvent);
+      window.removeEventListener("carelynx:features", handleFeaturesEvent);
       window.removeEventListener("carelynx:careplan", handleCarePlanEvent);
       window.removeEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
     };
@@ -353,6 +383,16 @@ function HomeContent() {
         </div>
       )}
 
+      {/* Persistent hidden file input for paperwork upload across all views */}
+      <input 
+        type="file" 
+        className="hidden" 
+        onChange={handleFileUpload}
+        disabled={isUploading || isProcessing}
+        ref={fileInputRef}
+        accept="application/pdf,image/jpeg,image/png"
+      />
+
       {/* Main View: Landing Hero OR Active Case Care Plan */}
       {!activeCase ? (
         <div className="flex flex-col gap-16" id="hero">
@@ -373,15 +413,6 @@ function HomeContent() {
 
               {/* Action Buttons Group */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  onChange={handleFileUpload}
-                  disabled={isUploading || isProcessing}
-                  ref={fileInputRef}
-                  accept="application/pdf,image/jpeg,image/png"
-                />
-                
                 {/* 1. Royal Blue Button */}
                 <button
                   onClick={initiateUploadClick}

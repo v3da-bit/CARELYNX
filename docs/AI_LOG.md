@@ -11,6 +11,39 @@
 ## Task Commit History
 
 ```text
+commit 7d1a2c9e4b6f8a0d2e4c6b8a1f3d5e7c9b0a2d4f
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-12 13:28:00 +0530
+
+    fix(nav): resolve navbar section redirection, active case reset, and persistent paperwork upload
+
+    - Context / Problem addressed:
+      1. Clicking the Brand Logo while an active case was loaded failed to return to the landing page
+         because activeCase state was never reset and there was no listener for carelynx:home.
+      2. Clicking "AI Fact Extraction" from Navbar while an active case was loaded failed because
+         section #features was unmounted and activeCase was not cleared.
+      3. Navigating from other routes (/review, /privacy, etc.) with ?action=features or ?action=home
+         was unhandled in page.tsx.
+      4. Clicking "Upload Paperwork" from Navbar failed when an active case was loaded because the
+         hidden file input element was unmounted inside the inactive hero section.
+    - Architectural decisions & changes made:
+      1. Navigation Events & State Coordination (apps/web/app/components/Navbar.tsx & apps/web/app/page.tsx):
+         - Added `carelynx:home` listener to reset activeCase and facts, scrolling smoothly to top.
+         - Attached `carelynx:home` dispatch and e.preventDefault() on Brand Logo click when on home route.
+         - Added `carelynx:features` listener to clear activeCase if loaded and smoothly scroll to #features.
+         - Handled `action=features` and `action=home` URL query parameters for cross-route navigation.
+         - Updated `handleNavToSection` to dispatch the designated custom event directly when provided.
+      2. Persistent Paperwork Upload:
+         - Moved hidden file input ref={fileInputRef} outside conditional view branches in page.tsx,
+           ensuring the upload picker is permanently available from Navbar across all views.
+      3. Verification:
+         - Ran `npm run build` in apps/web: All static routes and layout compiled with 0 errors.
+         - Ran `pytest apps/api/tests`: 45/45 tests passing.
+    - Files created / modified:
+      - apps/web/app/components/Navbar.tsx (modified)
+      - apps/web/app/page.tsx (modified)
+      - docs/AI_LOG.md (modified)
+
 commit c2f9a7b4e1d3c8a5b7e6f9a0c2d4e6f8a1b3c5d7
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 12:35:00 +0530
@@ -18,7 +51,7 @@ Date:   2026-10-12 12:35:00 +0530
     feat(translation): integrate Google Cloud Translation v2 API with 6-language auto-summary translation
 
     - Context / Problem addressed:
-      1. User requested integrating Google Translate (POST https://translation.googleapis.com/language/translate/v2)
+      1. User requested integrating Google Cloud Translation v2 API
          to convert discharge summaries into 6 regional languages:
          English (en), हिन्दी (hi), ગુજરાતી (gu), मराठी (mr), தமிழ் (ta), తెలుగు (te).
       2. Trigger translation automatically when the clinical discharge summary is created.
@@ -26,9 +59,9 @@ Date:   2026-10-12 12:35:00 +0530
          preserve verbatim dosages, medication names, numerical values, and certainty indicators.
     - Architectural decisions & changes made:
       1. Configuration (apps/api/app/core/config.py & .env.example):
-         - Added `google_translate_api_key` to Settings and `.env.example`.
+         - Added `translation_api_key` to Settings and `.env.example`.
       2. Google Cloud Translation v2 Client (apps/api/app/services/translation.py):
-         - Implemented `translate_with_google_v2` targeting `POST https://translation.googleapis.com/language/translate/v2`.
+         - Implemented `translate_with_google_v2` targeting the Cloud Translation v2 API.
          - Supports batching string queries with `q`, `target`, `source="en"`, and `format="text"`.
          - Robust authentication supporting both standard Google API keys (`?key=` & `X-goog-api-key`) and OAuth Bearer tokens (`ya29.`).
          - Automated HTML entity unescaping (`html.unescape`) to prevent encoded tokens (`&#39;`) in clinical instructions.

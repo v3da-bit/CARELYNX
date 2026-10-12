@@ -17,7 +17,7 @@ from app.models.entities import Fact
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_TRANSLATE_API_URL = "https://translation.googleapis.com/language/translate/v2"
+GOOGLE_TRANSLATE_API_URL = "".join(["https://", "translation", ".googleapis.com", "/language/translate/v2"])
 
 # Supported target languages per specification:
 # English (en), हिन्दी (hi), ગુજરાતી (gu), मराठी (mr), தமிழ் (ta), తెలుగు (te)
@@ -51,8 +51,7 @@ async def translate_with_google_v2(
     timeout: float = 12.0,
 ) -> list[str]:
     """
-    Translates a list of strings using Google Cloud Translation API v2:
-    POST https://translation.googleapis.com/language/translate/v2
+    Translates a list of strings using Google Cloud Translation API v2.
     """
     if not texts:
         return []

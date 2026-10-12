@@ -138,7 +138,7 @@ def test_translate_facts_with_google_v2_and_cache(db: Session):
     }
 
     with patch("app.services.translation.get_settings") as mock_settings:
-        mock_settings.return_value.google_translate_api_key = "AIzaSyFakeKey123"
+        mock_settings.return_value.google_translate_api_key = "mock-test-key-safe"
         with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
@@ -181,7 +181,7 @@ def test_auto_translate_on_summary_created(db: Session):
     db.commit()
 
     with patch("app.services.translation.get_settings") as mock_settings:
-        mock_settings.return_value.google_translate_api_key = "AIzaSyFakeKey123"
+        mock_settings.return_value.google_translate_api_key = "mock-test-key-safe"
         with patch("app.services.translation.translate_facts", new_callable=AsyncMock) as mock_translate:
             asyncio.run(auto_translate_on_summary_created(db, str(case_id), ["hi", "gu", "mr", "ta", "te"]))
             assert mock_translate.call_count == 5

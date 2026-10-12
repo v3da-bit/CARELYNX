@@ -32,10 +32,11 @@ export default function Navbar() {
     if (pathname === "/") {
       if (eventName) {
         window.dispatchEvent(new CustomEvent(eventName));
-      }
-      const element = document.getElementById(sectionId);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
+      } else {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth" });
+        }
       }
     } else {
       router.push(`/?action=${sectionId}#${sectionId}`);
@@ -48,8 +49,15 @@ export default function Navbar() {
         {/* Brand Logo */}
         <Link 
           href="/" 
-          onClick={() => setMobileMenuOpen(false)}
-          className="flex items-center gap-2.5 font-bold tracking-tight text-slate-900 group" 
+          onClick={(e) => {
+            setMobileMenuOpen(false);
+            if (pathname === "/") {
+              e.preventDefault();
+              window.dispatchEvent(new CustomEvent("carelynx:home"));
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          }}
+          className="flex items-center gap-2.5 font-bold tracking-tight text-slate-900 group cursor-pointer" 
           id="nav-home"
         >
           <div className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
@@ -66,7 +74,7 @@ export default function Navbar() {
         {/* Center Desktop Navigation Links */}
         <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
           <button 
-            onClick={() => handleNavToSection("features")}
+            onClick={() => handleNavToSection("features", "carelynx:features")}
             className="hover:text-brand transition-colors text-left font-semibold cursor-pointer"
             id="nav-link-extraction"
           >
@@ -140,8 +148,8 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200/80 bg-white/95 backdrop-blur-md px-4 pt-3 pb-5 flex flex-col gap-3 shadow-lg">
           <button 
-            onClick={() => handleNavToSection("features")}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-slate-100 text-sm font-semibold text-slate-800 text-left"
+            onClick={() => handleNavToSection("features", "carelynx:features")}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-slate-100 text-sm font-semibold text-slate-800 text-left cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-emerald-600" />
             <span>AI Fact Extraction</span>
