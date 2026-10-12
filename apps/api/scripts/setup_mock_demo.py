@@ -7,16 +7,21 @@ from datetime import datetime
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from app.db.session import SessionLocal
-from app.models.entities import Case, Document, Fact, Evidence, ReviewCase, Conflict
-from app.models.enums import FactStatus, FactType, ReviewStatus, ReviewSeverity, ReviewReason
+from app.models.entities import Case, Document, Fact, Evidence, ReviewCase, Conflict, Patient
+from app.models.enums import FactStatus, FactType, ReviewStatus, ReviewSeverity, ReviewReason, ProcessingStatus
 
 def setup_demo():
     db = SessionLocal()
     print("Setting up CARELYNX Hackathon Demo Data...")
 
+    # Create Patient
+    patient = Patient(external_reference="DEMO-0001")
+    db.add(patient)
+    db.flush()
+
     # Create Case
     case_id = uuid.uuid4()
-    case = Case(id=case_id)
+    case = Case(id=case_id, patient_id=patient.id)
     db.add(case)
     db.flush()
 
@@ -27,8 +32,9 @@ def setup_demo():
         case_id=case.id,
         filename="discharge_summary_smith.pdf",
         mime_type="application/pdf",
+        storage_key="demo/discharge_summary_smith.pdf",
         size_bytes=102400,
-        processing_status="COMPLETED"
+        processing_status=ProcessingStatus.PROCESSED
     )
     db.add(doc)
     db.flush()

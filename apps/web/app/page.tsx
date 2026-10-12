@@ -22,7 +22,7 @@ function HomeContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Translation state
-  const [language, setLanguage] = useState<"en" | "hi" | "gu">("en");
+  const [language, setLanguage] = useState<"en" | "hi" | "gu" | "mr" | "ta" | "te">("en");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translations, setTranslations] = useState<Record<string, Record<string, unknown>>>({});
   
@@ -179,7 +179,7 @@ function HomeContent() {
   }, [activeCase, isProcessing]);
 
   // Handle multilingual translation
-  const handleLanguageChange = async (targetLang: "en" | "hi" | "gu") => {
+  const handleLanguageChange = async (targetLang: "en" | "hi" | "gu" | "mr" | "ta" | "te") => {
     if (targetLang === "en") {
       setLanguage("en");
       return;
@@ -194,7 +194,7 @@ function HomeContent() {
     try {
       const res = await translateCase(activeCase.id, targetLang);
       const newMap: Record<string, Record<string, unknown>> = {};
-      res.translated_facts.forEach(t => {
+      res.facts.forEach(t => {
         newMap[t.id] = t.translated_value;
       });
       setTranslations(newMap);
@@ -648,6 +648,27 @@ function HomeContent() {
                 >
                   ગુજરાતી
                 </button>
+                <button 
+                  onClick={() => handleLanguageChange("mr")} 
+                  disabled={isTranslating} 
+                  className={`px-3 py-1 rounded-full transition-all ${language === 'mr' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                >
+                  मराठी
+                </button>
+                <button 
+                  onClick={() => handleLanguageChange("ta")} 
+                  disabled={isTranslating} 
+                  className={`px-3 py-1 rounded-full transition-all ${language === 'ta' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                >
+                  தமிழ்
+                </button>
+                <button 
+                  onClick={() => handleLanguageChange("te")} 
+                  disabled={isTranslating} 
+                  className={`px-3 py-1 rounded-full transition-all ${language === 'te' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                >
+                  తెలుగు
+                </button>
                 {isTranslating && <Loader2 className="w-3 h-3 animate-spin text-brand ml-1 mr-2" />}
               </div>
 
@@ -657,6 +678,18 @@ function HomeContent() {
               >
                 <Printer className="w-3.5 h-3.5 text-slate-700" />
                 <span>Print Plan</span>
+              </button>
+
+              {/* Voice Accessibility (Phase 2) */}
+              <button
+                onClick={() => {
+                  const speech = new SpeechSynthesisUtterance("Reading your care plan. " + facts.map(f => getFactTitle(f)).join(". "));
+                  window.speechSynthesis.speak(speech);
+                }}
+                className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+                title="Read Aloud (Voice Accessibility)"
+              >
+                <span>Read Aloud</span>
               </button>
 
               <button

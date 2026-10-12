@@ -215,7 +215,6 @@ class RuleBasedProvider:
                         "frequency": m_freq
                     }
                 })
-
         # 4. Appointment Sheet & Follow-Up Parsing
         fup_matches = re.finditer(r"(?:Follow-up date|Appointment date)[\s:]*([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4})", text, re.IGNORECASE)
         for fm in fup_matches:
@@ -232,6 +231,20 @@ class RuleBasedProvider:
                     "department": "Outpatient Medicine Clinic"
                 }
             })
+
+        # 4b. Legacy Follow-ups (from main branch)
+        if "FOLLOW-UP APPOINTMENTS" in text or "NEXT VISITS" in text:
+            fups = re.findall(r"-\s+(.*?)\s+(?:on|scheduled for)\s+([A-Za-z]{3}\s\d{1,2},?\s\d{4}|\d{1,2}/\d{1,2}/\d{2,4})", text)
+            for f in fups:
+                kind, date = f
+                facts.append({
+                    "fact_type": "follow_up",
+                    "source": {"page_number": 1, "quote": f"{kind.strip()} on {date.strip()}" if "on" in text else f"{kind.strip()} scheduled for {date.strip()}", "section": "Follow-up"},
+                    "legible": True,
+                    "value": {
+                        "raw_text": f"{kind.strip()} on {date.strip()}"
+                    }
+                })
 
         # 5. Section and Line-based Extraction
         current_section = None

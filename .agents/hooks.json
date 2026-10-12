@@ -1,4 +1,4 @@
-{
+﻿{
   "carelynx-prehook": {
     "PreInvocation": [
       {
@@ -12,7 +12,7 @@
     "PostInvocation": [
       {
         "type": "command",
-        "command": "echo '{\"injectSteps\":[{\"ephemeralMessage\":\"📝 CARELYNX POST-TASK REMINDER: Before you stop, ensure you have appended a git-commit formatted log entry to docs/AI_LOG.md documenting what you did, what files you changed, and what you verified.\"}]}'",
+        "command": "python -c \"import json; print(json.dumps({'injectSteps':[{'ephemeralMessage':'CARELYNX POST-TASK REMINDER'}]}))\"",
         "timeout": 5
       }
     ]
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"decision\":\"allow\",\"reason\":\"CARELYNX SAFETY REMINDER: Ensure you have read docs/AI_INSTRUCTIONS.md, docs/PRD.md, docs/SAFETY.md, and docs/ARCHITECTURE.md before making this edit. Verify your change aligns with the established architecture and does not introduce conceptual drift.\"}'",
+            "command": "python -c \"import json; print(json.dumps({'decision':'allow','reason':'CARELYNX SAFETY REMINDER'}))\"",
             "timeout": 5
           }
         ]

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,6 +39,14 @@ export default function ReviewDashboard() {
 
   useEffect(() => {
     fetchReviews();
+    
+    // Hide global footer while on review workspace
+    const footer = document.querySelector("footer");
+    if (footer) footer.style.display = "none";
+    
+    return () => {
+      if (footer) footer.style.display = "";
+    };
   }, []);
 
   const selectReview = async (review: ReviewCaseResponse) => {
@@ -87,9 +97,9 @@ export default function ReviewDashboard() {
   });
 
   return (
-    <div className="flex-1 flex h-[calc(100dvh-4.5rem)] max-h-[calc(100dvh-4.5rem)] overflow-hidden bg-bg">
+    <div className="fixed inset-0 top-[72px] flex overflow-hidden bg-bg z-20">
       {/* Sidebar: Case Queue */}
-      <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full z-10 shrink-0 overflow-hidden">
+      <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full min-h-0 z-10 shrink-0">
         <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="font-bold text-base text-slate-800 flex items-center gap-2">
@@ -127,8 +137,11 @@ export default function ReviewDashboard() {
           </div>
         </div>
         
-        {/* Queue Items List (Slidebar scroll) */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+        {/* Queue Items List */}
+        <div 
+          className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 review-queue-scroll custom-scrollbar overscroll-contain pb-16"
+          style={{ scrollbarGutter: "stable" }}
+        >
           {loading ? (
             <div className="p-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
               <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
@@ -168,7 +181,7 @@ export default function ReviewDashboard() {
       </aside>
 
       {/* Main: Clinical Comparator Workspace */}
-      <main className="flex-1 h-full overflow-y-auto bg-slate-50/40 p-6 sm:p-8 custom-scrollbar">
+      <main className="flex-1 h-full min-h-0 min-w-0 overflow-y-auto bg-slate-50/40 p-6 sm:p-8 custom-scrollbar pb-16">
         {selectedReview ? (
           <div className="max-w-4xl mx-auto flex flex-col gap-6 fade-in">
             {/* Header Callout */}

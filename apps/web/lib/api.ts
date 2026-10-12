@@ -117,11 +117,13 @@ export const getFact = (factId: string) => api<FactResponse>(`/facts/${factId}`)
 
 export interface TranslatedFact {
   id: string;
+  fact_type: string;
   translated_value: Record<string, unknown>;
+  status: string;
 }
 
 export const translateCase = (caseId: string, lang: string) => 
-  api<{ translated_facts: TranslatedFact[] }>(`/cases/${caseId}/translate?target_lang=${lang}`, { method: "POST" });
+  api<{ case_id: string, language: string, facts: TranslatedFact[] }>(`/cases/${caseId}/translate?target_lang=${lang}`, { method: "POST" });
 
 export interface EvidenceResponse {
   id: string;

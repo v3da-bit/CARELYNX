@@ -17,10 +17,11 @@ router = APIRouter(tags=["health"])
 
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
-    database: Literal["ok", "unavailable"]
-    database_backend: str
+    app: str
+    version: str
+    database: Literal["connected", "unavailable"]
+    storage: str
     inference_provider: str
-    inference_hardware_label: str
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -28,14 +29,14 @@ def health(db: Session = Depends(get_db)) -> HealthResponse:
     settings = get_settings()
     try:
         db.execute(text("SELECT 1"))
-        db_status: Literal["ok", "unavailable"] = "ok"
+        db_status: Literal["connected", "unavailable"] = "connected"
     except Exception:  # noqa: BLE001 — health must never raise
         db_status = "unavailable"
-    backend = db.get_bind().dialect.name
     return HealthResponse(
-        status="ok" if db_status == "ok" else "degraded",
+        status="ok" if db_status == "connected" else "degraded",
+        app="carelynx-api",
+        version="0.1.0",
         database=db_status,
-        database_backend=backend,
+        storage="local_private",
         inference_provider=settings.inference_provider,
-        inference_hardware_label=settings.inference_hardware_label,
     )

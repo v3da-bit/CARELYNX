@@ -1,4 +1,4 @@
-import re
+﻿import re
 from typing import Any
 
 from app.models.enums import FactStatus
@@ -10,6 +10,8 @@ FORBIDDEN_AUTONOMOUS_PATTERNS = [
     r"\b(i (recommend|suggest|prescribe|diagnose|altered|adjusted|changed))\b",
     r"\b(dosage (should be|was) (increased|decreased|modified))\b",
     r"\b(treatment (recommendation|advice):)\b",
+    r"\b(increase|decrease|change|substitute|stop|start)\s+(dose|dosage|medication)\b",
+    r"\b(likely has|suspect|probable diagnosis|based on symptoms)\b",
 ]
 
 def check_safety_policy(fact_value: dict[str, Any]) -> tuple[bool, list[str]]:
@@ -33,4 +35,3 @@ def enforce_safety_on_fact(fact: Fact) -> None:
     if not is_safe:
         fact.status = FactStatus.REJECTED
         fact.status_reasons = (fact.status_reasons or []) + violations
-
