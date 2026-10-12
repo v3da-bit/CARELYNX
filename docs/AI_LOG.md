@@ -11,6 +11,42 @@
 ## Task Commit History
 
 ```text
+commit 85fb9ca65a1ada2c5279861579105d40ffb8bf5d
+Author: Gemini 3.1 Pro via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-12 17:36:00 +0530
+
+    fix(storage): implement missing app.storage module, update .gitignore, and install dev dependencies
+
+    - Context / Problem addressed:
+      1. FastAPI server failed to start with `ModuleNotFoundError: No module named 'app.storage'`.
+      2. The `app.storage` package was absent because `.gitignore` contained `storage/`, which
+         accidentally excluded `apps/api/app/storage/` from git tracking.
+      3. Running `run.py dev` or `run.py test` failed because dev requirements (pytest, etc.)
+         were missing in `.venv`.
+    - Architectural decisions & changes made:
+      1. Updated `.gitignore`:
+         - Replaced generic `storage/` with `/storage/` and `apps/api/storage/`.
+         - Explicitly whitelisted `!apps/api/app/storage/` to prevent future git exclusion.
+      2. Implemented `apps/api/app/storage/base.py`:
+         - Defined `StorageBackend` Protocol specifying `put`, `get`, `delete`, and `exists` methods.
+      3. Implemented `apps/api/app/storage/local.py`:
+         - Defined `LocalPrivateStorage` providing path-traversal-safe file persistence with
+           isolated UUID keys and `get_storage` FastAPI dependency.
+      4. Implemented `apps/api/app/storage/__init__.py`:
+         - Exported `StorageBackend`, `LocalPrivateStorage`, and `get_storage`.
+      5. Installed `requirements-dev.txt` in `.venv`.
+    - Files created / modified:
+      - .gitignore (modified)
+      - apps/api/app/storage/__init__.py (created)
+      - apps/api/app/storage/base.py (created)
+      - apps/api/app/storage/local.py (created)
+      - docs/AI_LOG.md (modified)
+    - Verification & testing performed:
+      - Executed `python run.py test`: all 45 backend unit & integration tests passed cleanly (100%).
+      - Executed `apps/api/scripts/evaluate_clinical.py`: all clinical benchmarks passed (18 facts, 17 evidence matches, 2 conflicts detected, 3/3 safety intercepts).
+    - Alignment check:
+      - Confirmed compliance with docs/PRD.md, docs/ARCHITECTURE.md, and docs/SAFETY.md.
+
 commit c2f9a7b4e1d3c8a5b7e6f9a0c2d4e6f8a1b3c5d7
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 12:35:00 +0530
