@@ -1,7 +1,9 @@
-# Secrets / env
+# Secrets / env (Never commit or push any env files - public repository security)
 .env
 .env.*
-!.env.example
+.env.example
+*.env
+*.env.*
 
 # Python
 __pycache__/

@@ -59,7 +59,22 @@ async def translate_with_google_v2(
     if target_lang == "en" or target_lang == source_lang:
         return list(texts)
 
-    key = api_key or get_settings().google_translate_api_key or os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
+    settings = get_settings()
+    k_cand = api_key if api_key is not None else getattr(settings, "google_translate_api_key", "")
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        k_cand = os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        inf = getattr(settings, "inference_api_key", "")
+        if isinstance(inf, str) and inf.strip():
+            k_cand = inf
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        gem = getattr(settings, "gemini_api_key", "")
+        if isinstance(gem, str) and gem.strip():
+            k_cand = gem
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        k_cand = os.environ.get("GEMINI_API_KEY", "")
+
+    key = str(k_cand or "").strip()
     if not key:
         raise ValueError("Google Translate API key not configured")
 
@@ -135,10 +150,28 @@ async def translate_facts(db: Session, case_id: str, target_lang: str) -> dict[s
         return _TRANSLATION_CACHE[cache_key]
 
     # Attempt Google Cloud Translation v2 first if API key is provided
-    google_key = get_settings().google_translate_api_key or os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
+    settings = get_settings()
+    k_cand = getattr(settings, "google_translate_api_key", "")
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        k_cand = os.environ.get("GOOGLE_TRANSLATE_API_KEY", "")
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        inf = getattr(settings, "inference_api_key", "")
+        if isinstance(inf, str) and inf.strip():
+            k_cand = inf
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        gem = getattr(settings, "gemini_api_key", "")
+        if isinstance(gem, str) and gem.strip():
+            k_cand = gem
+    if not isinstance(k_cand, str) or not k_cand.strip():
+        k_cand = os.environ.get("GEMINI_API_KEY", "")
+    google_key = str(k_cand or "").strip()
     if google_key:
         try:
-            translatable_keys = {"name", "text", "raw_text", "instruction", "substance", "kind", "notes", "department", "reaction"}
+            translatable_keys = {
+                "name", "text", "raw_text", "instruction", "substance",
+                "kind", "notes", "department", "reaction", "simplified_meaning",
+                "meaning", "explanation", "summary"
+            }
             
             # Extract list of texts to batch translate
             items_to_translate: list[tuple[str, str, str]] = []  # (fact_id, key, text)

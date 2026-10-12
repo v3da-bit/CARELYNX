@@ -185,3 +185,55 @@ def test_auto_translate_on_summary_created(db: Session):
         with patch("app.services.translation.translate_facts", new_callable=AsyncMock) as mock_translate:
             asyncio.run(auto_translate_on_summary_created(db, str(case_id), ["hi", "gu", "mr", "ta", "te"]))
             assert mock_translate.call_count == 5
+
+
+def test_gemini_provider_and_simplified_meaning(db: Session):
+    from app.ai.gemini import GeminiProvider
+    from app.ai.provider import StructuredRequest
+
+    provider = GeminiProvider()
+    provider.api_key = "mock-test-key-safe"
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": json.dumps({
+                                "facts": [
+                                    {
+                                        "fact_type": "medication",
+                                        "source": {"page_number": 1, "quote": "Aspirin 81mg PO daily"},
+                                        "legible": True,
+                                        "value": {
+                                            "name": "Aspirin",
+                                            "strength": "81mg",
+                                            "simplified_meaning": "Blood-thinner to protect heart and prevent clots"
+                                        }
+                                    }
+                                ]
+                            })
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    req = StructuredRequest(
+        task="extraction_v1",
+        system_prompt="Extract clinical facts",
+        user_prompt="Document text",
+        json_schema={},
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        result = asyncio.run(provider.generate_structured(req))
+        assert "facts" in result
+        assert len(result["facts"]) == 1
+        assert result["facts"][0]["value"]["simplified_meaning"] == "Blood-thinner to protect heart and prevent clots"
+

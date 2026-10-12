@@ -31,6 +31,7 @@ First, validate that the provided text is a proper medical document (such as a d
 
 ## Formatting instructions
 When populating the `value` fields (such as `text`, `name`, `substance`, etc.), present the information in a concise and simple way, making it easy to read. However, the `quote` field in `source` MUST remain strictly verbatim.
+Always populate `simplified_meaning` for each extracted item: provide a clear, empathetic, plain-language explanation of what this item means in everyday life (e.g. what the medication does for their recovery, why to follow the care instruction, or what action to take if a warning sign occurs), without diagnosing or altering any orders.
 
 ## Evidence requirement
 Every item MUST include `source.page_number` and `source.quote`, where `quote` is copied **verbatim** (character for

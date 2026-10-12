@@ -863,24 +863,36 @@ function HomeContent() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {warnings.map(f => (
-                      <div 
-                        key={f.id} 
-                        onClick={() => viewEvidence(f)}
-                        className="p-4 rounded-2xl bg-white border border-rose-200 hover:border-rose-400 cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-xs group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-semibold text-rose-900 leading-relaxed">
-                            {getFactTitle(f)}
-                          </p>
-                          <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    {warnings.map(f => {
+                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
+                      const simplified = String(val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      return (
+                        <div 
+                          key={f.id} 
+                          onClick={() => viewEvidence(f)}
+                          className="p-4 rounded-2xl bg-white border border-rose-200 hover:border-rose-400 cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-xs group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-rose-900 leading-relaxed">
+                                {getFactTitle(f)}
+                              </p>
+                              {Boolean(simplified) && (
+                                <p className="text-[11px] text-rose-800 bg-rose-50/90 px-2.5 py-1.5 rounded-xl mt-2 border border-rose-100 flex items-start gap-1.5 leading-snug">
+                                  <Sparkles className="w-3 h-3 text-rose-500 shrink-0 mt-0.5" />
+                                  <span>{simplified}</span>
+                                </p>
+                              )}
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-rose-600 pt-2 border-t border-rose-100">
+                            <span className="font-mono">100% Grounded</span>
+                            <span className="font-semibold underline decoration-rose-300">View Source Proof →</span>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] text-rose-600 pt-2 border-t border-rose-100">
-                          <span className="font-mono">100% Grounded</span>
-                          <span className="font-semibold underline decoration-rose-300">View Source Proof →</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
               )}
@@ -901,44 +913,55 @@ function HomeContent() {
                   <p className="text-xs text-slate-500 py-4">No follow-up dates extracted from uploaded pages.</p>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {appointments.map(f => (
-                      <div 
-                        key={f.id} 
-                        onClick={() => viewEvidence(f)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
-                          f.status === "CONFLICT_DETECTED" 
-                            ? "bg-rose-50 border-rose-300 hover:bg-rose-100/50" 
-                            : "bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0">
-                            <Clock className="w-5 h-5" />
+                    {appointments.map(f => {
+                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
+                      const simplified = val.simplified_meaning || val.meaning || val.explanation;
+                      return (
+                        <div 
+                          key={f.id} 
+                          onClick={() => viewEvidence(f)}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
+                            f.status === "CONFLICT_DETECTED" 
+                              ? "bg-rose-50 border-rose-300 hover:bg-rose-100/50" 
+                              : "bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0">
+                              <Clock className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <span className="text-xs font-bold text-slate-900 block">
+                                {getFactTitle(f)}
+                              </span>
+                              {simplified ? (
+                                <span className="text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 border border-purple-100">
+                                  <Sparkles className="w-2.5 h-2.5 text-purple-500 shrink-0" />
+                                  {String(simplified)}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 block mt-0.5">
+                                  Clinical Follow-up Visit
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-xs font-bold text-slate-900 block">
-                              {getFactTitle(f)}
-                            </span>
-                            <span className="text-[11px] text-slate-500 block mt-0.5">
-                              Clinical Follow-up Visit
-                            </span>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center gap-2">
-                          {f.status === "CONFLICT_DETECTED" ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                              Discrepancy
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                              Verified
-                            </span>
-                          )}
-                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                          <div className="flex items-center gap-2">
+                            {f.status === "CONFLICT_DETECTED" ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+                                Discrepancy
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                                Verified
+                              </span>
+                            )}
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -961,6 +984,7 @@ function HomeContent() {
                   <div className="flex flex-col gap-3">
                     {medications.map(f => {
                       const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
+                      const simplified = String(val.simplified_meaning || val.meaning || val.explanation || "").trim();
                       return (
                         <div 
                           key={f.id} 
@@ -980,6 +1004,13 @@ function HomeContent() {
                               {String(val.strength || "Standard Dose")}
                             </span>
                           </div>
+
+                          {Boolean(simplified) && (
+                            <div className="text-[11px] text-slate-700 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-100 flex items-start gap-1.5 leading-snug">
+                              <Sparkles className="w-3 h-3 text-emerald-600 shrink-0 mt-0.5" />
+                              <span>{simplified}</span>
+                            </div>
+                          )}
 
                           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                             <span>Instructions: {String(val.frequency || "See hospital prescription")}</span>
@@ -1008,24 +1039,36 @@ function HomeContent() {
                   <p className="text-xs text-slate-500 py-4">No specific home instructions extracted.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {instructions.map(f => (
-                      <div 
-                        key={f.id} 
-                        onClick={() => viewEvidence(f)}
-                        className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-xs group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-medium text-slate-800 leading-relaxed">
-                            {getFactTitle(f)}
-                          </p>
-                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    {instructions.map(f => {
+                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
+                      const simplified = String(val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      return (
+                        <div 
+                          key={f.id} 
+                          onClick={() => viewEvidence(f)}
+                          className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-all flex flex-col justify-between gap-3 shadow-xs group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-slate-800 leading-relaxed">
+                                {getFactTitle(f)}
+                              </p>
+                              {Boolean(simplified) && (
+                                <p className="text-[11px] text-teal-800 bg-teal-50/80 p-2 rounded-xl mt-2 border border-teal-100 flex items-start gap-1.5 leading-snug">
+                                  <Sparkles className="w-3 h-3 text-teal-600 shrink-0 mt-0.5" />
+                                  <span>{simplified}</span>
+                                </p>
+                              )}
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                            <span className="text-brand font-mono font-semibold">100% Verbatim Linked</span>
+                            <span className="font-semibold text-brand underline decoration-emerald-200">View Proof →</span>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-                          <span className="text-brand font-mono font-semibold">100% Verbatim Linked</span>
-                          <span className="font-semibold text-brand underline decoration-emerald-200">View Proof →</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -1075,6 +1118,21 @@ function HomeContent() {
                 <div className="mt-1.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-300 text-sm font-bold text-slate-900 shadow-xs">
                   {getFactTitle(selectedFact)}
                 </div>
+
+                {(() => {
+                  const mVal = (language === "en" || !translations[selectedFact.id] ? selectedFact.value : translations[selectedFact.id]) || {};
+                  const mSimp = mVal.simplified_meaning || mVal.meaning || mVal.explanation;
+                  if (!mSimp) return null;
+                  return (
+                    <div className="mt-3 p-3.5 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-xs text-slate-800 flex items-start gap-2.5 shadow-xs">
+                      <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-emerald-950 block mb-0.5">AI Plain-Language Patient Guide:</span>
+                        <span className="text-slate-700 leading-relaxed">{String(mSimp)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Status Badge */}
                 <div className="mt-2.5 flex items-center gap-2">

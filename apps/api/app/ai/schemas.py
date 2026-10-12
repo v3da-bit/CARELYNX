@@ -30,6 +30,7 @@ class FollowUpValue(BaseModel):
     department: str | None = None
     clinician: str | None = None
     raw_text: str = Field(description="The date/time text exactly as written")
+    simplified_meaning: str | None = Field(default=None, max_length=500, description="Plain-language explanation of this appointment")
 
     @field_validator("date")
     @classmethod
@@ -50,17 +51,20 @@ class MedicationValue(BaseModel):
     frequency: str | None = None
     duration: str | None = None
     timing: str | None = None
+    simplified_meaning: str | None = Field(default=None, max_length=500, description="Plain-language explanation of what this medication does and why it is taken")
 
 
 class TextValue(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=2, max_length=400)
+    simplified_meaning: str | None = Field(default=None, max_length=500, description="Plain-language explanation of what this instruction, warning sign, or condition means in everyday life")
 
 
 class AllergyValue(BaseModel):
     model_config = ConfigDict(extra="forbid")
     substance: str = Field(min_length=2, max_length=200)
     no_known_allergies: bool = False
+    simplified_meaning: str | None = Field(default=None, max_length=500, description="Plain-language explanation of what substance to avoid")
 
 
 class EncounterDateValue(BaseModel):
@@ -68,6 +72,7 @@ class EncounterDateValue(BaseModel):
     kind: Literal["admission", "discharge"]
     date: str | None = None
     raw_text: str
+    simplified_meaning: str | None = Field(default=None, max_length=500, description="Plain-language explanation of the hospital stay period")
 
 
 class FollowUpCandidate(_Base):

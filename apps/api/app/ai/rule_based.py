@@ -314,6 +314,48 @@ class RuleBasedProvider:
                     "value": {"text": cleaned_line}
                 })
 
+        # Enrich facts with simplified_meaning if not present
+        for f in facts:
+            val = f.get("value", {})
+            if "simplified_meaning" not in val or not val["simplified_meaning"]:
+                ftype = f.get("fact_type")
+                if ftype == "medication":
+                    med_name = val.get("name", "").lower()
+                    if "aspirin" in med_name:
+                        val["simplified_meaning"] = "Blood-thinner medication that prevents clots and protects heart function."
+                    elif "lisinopril" in med_name:
+                        val["simplified_meaning"] = "Blood pressure medication that relaxes blood vessels."
+                    elif "metformin" in med_name:
+                        val["simplified_meaning"] = "Diabetes medicine that helps keep blood sugar levels in a safe range."
+                    elif "atorvastatin" in med_name:
+                        val["simplified_meaning"] = "Cholesterol-lowering medicine to reduce plaque in arteries."
+                    elif "omeprazole" in med_name:
+                        val["simplified_meaning"] = "Stomach-acid reducer to prevent ulcers and acid reflux."
+                    else:
+                        val["simplified_meaning"] = f"Prescribed discharge medication to support recovery: {val.get('name', '')}."
+                elif ftype == "warning_sign":
+                    val["simplified_meaning"] = "Urgent warning sign: contact your doctor or visit the emergency room immediately."
+                elif ftype == "instruction":
+                    txt = val.get("text", "").lower()
+                    if "lifting" in txt:
+                        val["simplified_meaning"] = "Avoid heavy items (>10 lbs) so your surgical incisions can heal."
+                    elif "wound" in txt or "incision" in txt:
+                        val["simplified_meaning"] = "Keep surgical area clean and dry to prevent infection."
+                    elif "sodium" in txt or "salt" in txt:
+                        val["simplified_meaning"] = "Eat less salt to protect blood pressure and kidney function."
+                    elif "fluid" in txt or "water" in txt:
+                        val["simplified_meaning"] = "Stay hydrated by drinking plenty of water daily."
+                    else:
+                        val["simplified_meaning"] = "Essential home-recovery guideline to follow daily."
+                elif ftype == "follow_up":
+                    val["simplified_meaning"] = "Important clinic visit to monitor recovery progress."
+                elif ftype == "documented_condition":
+                    val["simplified_meaning"] = "Clinical diagnosis treated during this hospital stay."
+                elif ftype == "encounter_date":
+                    val["simplified_meaning"] = "Official hospital admission and discharge record."
+                elif ftype == "allergy":
+                    val["simplified_meaning"] = "Substance that must not be given due to known allergic reaction."
+
         return {"facts": facts}
 
     async def generate_text(self, system_prompt: str, user_prompt: str) -> str:

@@ -11,6 +11,51 @@
 ## Task Commit History
 
 ```text
+commit 4b8e2f1a6c0d8e9f2a4c6b8a1f3d5e7c9b0a2d4e
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-12 13:58:00 +0530
+
+    feat(ai): integrate Gemini direct clinical extraction, patient-friendly simplified meaning, and public repo security
+
+    - Context / Problem addressed:
+      1. User requested integrating AI extraction from uploaded paperwork/PDFs to analyze main points
+         and present plain-language simplified meanings to patients.
+      2. Support multilingual translation of clinical facts and simplified points across 6 regional languages
+         via Cloud Translation v2 API.
+      3. Secure all credentials: call keys exclusively from untracked `.env` files (never inline/hardcoded).
+      4. Protect public GitHub repository by ignoring `.env` and `.env.example` in `.gitignore` and untracking them.
+    - Architectural decisions & changes made:
+      1. AI Architecture & Providers (apps/api/app/ai/):
+         - Added `GeminiProvider` (apps/api/app/ai/gemini.py) with structured JSON generation and fallback.
+         - Updated `factory.py` to support `gemini` and auto-select Gemini when an API key is in `.env`.
+         - Updated `schemas.py` and `prompts/extraction_v1.md` with `simplified_meaning` on all clinical facts.
+         - Enriched `RuleBasedProvider` with deterministic plain-language simplified meanings for offline/test parity.
+      2. Multilingual Translation (apps/api/app/services/translation.py):
+         - Added `simplified_meaning` to `translatable_keys` so AI patient guides translate seamlessly.
+         - Supported shared Google API key fallback between `GOOGLE_TRANSLATE_API_KEY` and `GEMINI_API_KEY`.
+      3. Frontend Patient Experience (apps/web/app/page.tsx):
+         - Added `✨ AI Simplified Guide` badge and plain-language explanation to all cards (Medications,
+           Appointments, Emergency Warnings, and Home Care Instructions) and the Verbatim Evidence Modal.
+      4. Public Repo Security (.gitignore & .env.example):
+         - Added `.env`, `.env.*`, and `.env.example` to `.gitignore`.
+         - Untracked `.env.example` from git index (`git rm --cached .env.example`) so no env files are pushed.
+      5. Verification:
+         - Ran `pytest apps/api/tests`: 46/46 tests passing.
+         - Ran `npm run build`: 10/10 static pages compiled with Turbopack.
+    - Files created / modified:
+      - .gitignore (modified)
+      - .env.example (untracked from git index)
+      - apps/api/app/ai/gemini.py (created)
+      - apps/api/app/ai/factory.py (modified)
+      - apps/api/app/ai/prompts/extraction_v1.md (modified)
+      - apps/api/app/ai/rule_based.py (modified)
+      - apps/api/app/ai/schemas.py (modified)
+      - apps/api/app/core/config.py (modified)
+      - apps/api/app/services/translation.py (modified)
+      - apps/api/tests/unit/test_google_translate.py (modified)
+      - apps/web/app/page.tsx (modified)
+      - docs/AI_LOG.md (modified)
+
 commit 7d1a2c9e4b6f8a0d2e4c6b8a1f3d5e7c9b0a2d4f
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 13:28:00 +0530
