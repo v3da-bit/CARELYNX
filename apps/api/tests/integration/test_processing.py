@@ -61,3 +61,30 @@ def test_corrupt_pdf_fails_explicitly(client: TestClient) -> None:
 def test_unknown_document_404(client: TestClient) -> None:
     r = client.post("/api/v1/documents/00000000-0000-0000-0000-000000000000/process")
     assert r.status_code == 404
+
+
+def test_upload_and_extraction_generates_facts(client: TestClient) -> None:
+    # Create case
+    case_res = client.post("/api/v1/cases")
+    assert case_res.status_code == 201
+    case_id = case_res.json()["id"]
+
+    # Upload document
+    r = client.post("/api/v1/documents", data={"case_id": case_id}, files={"file": ("summary.pdf", render_pdf(A_SUMMARY), "application/pdf")})
+    assert r.status_code == 201
+    doc_id = r.json()["id"]
+
+    # Process document
+    proc_res = client.post(f"/api/v1/documents/{doc_id}/process")
+    assert proc_res.status_code == 200
+    assert proc_res.json()["status"] == "PROCESSED"
+
+    # Verify facts were created and have simplified_meaning
+    facts_res = client.get(f"/api/v1/cases/{case_id}/facts")
+    assert facts_res.status_code == 200
+    facts = facts_res.json()
+    assert len(facts) > 0
+    for fact in facts:
+        assert "simplified_meaning" in fact["value"]
+        assert len(fact["value"]["simplified_meaning"]) > 0
+

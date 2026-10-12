@@ -55,25 +55,44 @@ function HomeContent() {
       setIsUploading(true);
       setError(null);
       
-      let caseId = activeCase?.id;
-      if (!caseId) {
-        const newCase = await createCase();
-        caseId = newCase.id;
-      }
+      const newCase = await createCase();
+      const caseId = newCase.id;
       
       const doc = await uploadDocument(caseId, file);
       await processDocument(doc.id);
       
-      const c = await getCase(caseId);
+      const [c, f] = await Promise.all([getCase(caseId), getCaseFacts(caseId)]);
       setActiveCase(c);
-      setIsProcessing(true);
+      setFacts(f);
+      setIsProcessing(false);
+
+      if (language !== "en") {
+        setIsTranslating(true);
+        try {
+          const res = await translateCase(caseId, language);
+          const newMap: Record<string, Record<string, unknown>> = {};
+          res.facts.forEach(t => {
+            newMap[t.id] = t.translated_value;
+          });
+          setTranslations(newMap);
+        } catch (err) {
+          console.error("Auto-translation on upload failed:", err);
+        } finally {
+          setIsTranslating(false);
+        }
+      }
+
+      setTimeout(() => {
+        const el = document.getElementById("care-plan");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 300);
       
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setIsUploading(false);
     }
-  }, [activeCase]);
+  }, [language]);
 
   // 1-Click Sample Hospital PDF loader
   const handleLoadSample = useCallback(async (

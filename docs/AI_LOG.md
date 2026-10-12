@@ -11,6 +11,51 @@
 ## Task Commit History
 
 ```text
+commit c2f91a4b6e8d0e7a1b3c5d7e9f0a2b4c6d8e0f1a
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-12 14:23:00 +0530
+
+    fix(upload): resolve file upload data display and generalize multi-page clinical fact extraction
+
+    - Context / Problem addressed:
+      1. User reported: "When I upload the file , it did not work and nothing is shown as data from the file".
+      2. In the frontend (`apps/web/app/page.tsx`), `uploadAndProcessFile` never retrieved facts (`setFacts`)
+         after `processDocument` completed; it relied on an interval polling loop that experienced state
+         cancellation and race conditions with `activeCase` dependency triggers.
+      3. In the backend (`apps/api/app/ai/rule_based.py`), medication extraction was hardcoded to 11 specific drug names
+         and rigidly expected colons in section headers, causing arbitrary PDFs (such as Test Case 02 with
+         Gastrorelief, Nauseban, Calmospas, Nutri-D) to return 0 medications and 0 warnings.
+      4. `page_number` in `RuleBasedProvider` was hardcoded to page 1 or 2 rather than mapping to the exact
+         page where verbatim quotes occur, threatening evidence linking across multi-page documents.
+      5. `uploadDocument` in `apps/web/lib/api.ts` suppressed server error details when an upload failed.
+    - Architectural decisions & changes made:
+      1. Frontend Upload & Fact Hydration (apps/web/app/page.tsx):
+         - Overhauled `uploadAndProcessFile`: creates a fresh case per paperwork upload, uploads and processes
+           the document synchronously, and immediately fetches both case and facts (`Promise.all([getCase, getCaseFacts])`).
+         - Immediately sets `activeCase`, `facts`, and clears `isProcessing` without delay or polling race conditions.
+         - Triggers automatic multilingual translation if a regional language is selected.
+         - Automatically scrolls to the care plan section (`#care-plan`).
+      2. Generalized Multi-Page Extraction (apps/api/app/ai/rule_based.py):
+         - Added page-aware extraction parsing per-page text from `request.context["pages"]` (or `--- Page X ---` blocks).
+         - Replaced hardcoded medication whitelist with general tabular & multi-line medication parser matching any
+           drug name followed by dosages (mg/mcg/g/ml/IU/units/tablets/etc.) and frequency/directions.
+         - Extracted exact verbatim quotes and mapped them to their true `page_number` with 100% verified evidence.
+         - Enhanced follow-up, diagnosis, instruction, and warning extraction across arbitrary healthcare documents.
+      3. Typed Error Propagation (apps/web/lib/api.ts):
+         - Enhanced `uploadDocument` to parse and bubble up structured server error messages on failed requests.
+      4. Verification:
+         - Added integration test `test_upload_and_extraction_generates_facts` in `apps/api/tests/integration/test_processing.py`.
+         - Ran `pytest apps/api/tests`: 47/47 passing (100%).
+         - Verified with end-to-end API upload tests on both Test Report 01 and Test Case 02: 14 facts extracted,
+           100% verified evidence, full simplified meanings generated, and translation tested.
+         - Verified Next.js 16 frontend build: `npm run build` compiled 10/10 static pages with 0 errors.
+    - Files created / modified:
+      - apps/api/app/ai/rule_based.py (modified)
+      - apps/api/tests/integration/test_processing.py (modified)
+      - apps/web/app/page.tsx (modified)
+      - apps/web/lib/api.ts (modified)
+      - docs/AI_LOG.md (modified)
+
 commit 4b8e2f1a6c0d8e9f2a4c6b8a1f3d5e7c9b0a2d4e
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 13:58:00 +0530

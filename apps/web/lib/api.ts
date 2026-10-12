@@ -82,7 +82,16 @@ export const uploadDocument = async (caseId: string, file: File): Promise<Docume
     body: formData,
     headers: { "X-Carelynx-Role": "patient" },
   });
-  if (!res.ok) throw new Error("Upload failed");
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      msg = body?.error?.message || body?.detail || msg;
+    } catch {
+      // ignore
+    }
+    throw new Error(msg);
+  }
   return res.json();
 };
 
