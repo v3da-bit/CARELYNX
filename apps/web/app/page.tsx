@@ -9,7 +9,7 @@ import {
 import { 
   FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, CheckCircle2, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
-  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download
+  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock
 } from "lucide-react";
 
 function HomeContent() {
@@ -34,6 +34,13 @@ function HomeContent() {
   // Helpline copy feedback state
   const [helplineCopied, setHelplineCopied] = useState(false);
   
+  // Pre-upload consent gateway state
+  const [showUploadConsentModal, setShowUploadConsentModal] = useState(false);
+  const [consentAge, setConsentAge] = useState(false);
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [hasSessionUploadConsent, setHasSessionUploadConsent] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -97,7 +104,11 @@ function HomeContent() {
   // Handle custom events and URL parameters from Navbar / external links
   useEffect(() => {
     const handleUploadEvent = () => {
-      fileInputRef.current?.click();
+      if (hasSessionUploadConsent) {
+        fileInputRef.current?.click();
+      } else {
+        setShowUploadConsentModal(true);
+      }
     };
 
     const handleCarePlanEvent = () => {
@@ -125,7 +136,11 @@ function HomeContent() {
     // Check URL params
     const action = searchParams.get("action");
     if (action === "upload") {
-      setTimeout(() => fileInputRef.current?.click(), 200);
+      if (hasSessionUploadConsent) {
+        setTimeout(() => fileInputRef.current?.click(), 200);
+      } else {
+        setShowUploadConsentModal(true);
+      }
     } else if (action === "demo") {
       handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
     } else if (action === "prescriptions") {
@@ -139,18 +154,19 @@ function HomeContent() {
       window.removeEventListener("carelynx:careplan", handleCarePlanEvent);
       window.removeEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
     };
-  }, [activeCase, handleLoadSample, searchParams]);
+  }, [activeCase, handleLoadSample, hasSessionUploadConsent, searchParams]);
 
   // Close popup modal on ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selectedFact) {
-        setSelectedFact(null);
+      if (e.key === "Escape") {
+        if (showUploadConsentModal) setShowUploadConsentModal(false);
+        if (selectedFact) setSelectedFact(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedFact]);
+  }, [selectedFact, showUploadConsentModal]);
 
   // Poll for case status during background processing
   useEffect(() => {
@@ -206,12 +222,39 @@ function HomeContent() {
     }
   };
 
-  // Upload custom file
+  // Upload custom file with consent gateway check
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!hasSessionUploadConsent) {
+      setPendingFile(file);
+      setShowUploadConsentModal(true);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     await uploadAndProcessFile(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const initiateUploadClick = () => {
+    if (hasSessionUploadConsent) {
+      fileInputRef.current?.click();
+    } else {
+      setShowUploadConsentModal(true);
+    }
+  };
+
+  const handleConfirmUploadConsent = async () => {
+    if (!consentAge || !consentPrivacy) return;
+    setHasSessionUploadConsent(true);
+    setShowUploadConsentModal(false);
+    if (pendingFile) {
+      const f = pendingFile;
+      setPendingFile(null);
+      await uploadAndProcessFile(f);
+    } else {
+      fileInputRef.current?.click();
+    }
   };
 
   const copyHelplineNumber = () => {
@@ -324,12 +367,13 @@ function HomeContent() {
                 
                 {/* 1. Royal Blue Button */}
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={initiateUploadClick}
                   disabled={isUploading || isProcessing}
-                  className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2"
                   id="hero-btn-upload"
+                  aria-label="Upload patient paperwork"
                 >
-                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <FileUp className="w-4 h-4" aria-hidden="true" />}
                   <span>Upload Paperwork</span>
                 </button>
 
@@ -1049,6 +1093,131 @@ function HomeContent() {
                 className="px-5 py-2 rounded-full bg-brand hover:bg-brand-light text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer"
               >
                 Close Proof
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-Upload Health Data Privacy & Legal Consent Gateway Modal */}
+      {showUploadConsentModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="upload-consent-title"
+          aria-describedby="upload-consent-desc"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setShowUploadConsentModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 text-slate-900 max-h-[90vh] overflow-y-auto custom-scrollbar"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-emerald-700" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 id="upload-consent-title" className="text-lg font-bold text-slate-900">
+                    Patient Paperwork Privacy & Consent
+                  </h2>
+                  <p id="upload-consent-desc" className="text-xs text-slate-500">
+                    Required active consent under GDPR, CCPA, and HIPAA guidelines
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUploadConsentModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-600"
+                aria-label="Close upload consent dialog"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Safeguards Summary */}
+            <div className="flex flex-col gap-2.5 text-xs text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <strong className="text-slate-900">Isolated & Private Processing:</strong> Your discharge paperwork is stored securely under randomized UUID keys and never exposed to public directories.
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <strong className="text-slate-900">Zero Commercial Model Training:</strong> Your clinical paperwork is never ingested or shared to train public commercial AI models.
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <strong className="text-slate-900">Data Minimization:</strong> Only clinical instructions, follow-ups, and medications from the document are extracted.
+                </div>
+              </div>
+            </div>
+
+            {/* Unchecked Active Opt-in Checkboxes */}
+            <div className="flex flex-col gap-3.5">
+              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+                <input
+                  id="consent-age-check"
+                  type="checkbox"
+                  checked={consentAge}
+                  onChange={(e) => setConsentAge(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus-visible:outline-2 focus-visible:outline-emerald-600 shrink-0 cursor-pointer"
+                />
+                <label htmlFor="consent-age-check" className="text-xs text-slate-800 leading-relaxed cursor-pointer">
+                  <strong>Age & Authority Attestation:</strong> I confirm that I am at least 18 years old, or the legally authorized parent, guardian, or primary caregiver of the patient.
+                </label>
+              </div>
+
+              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+                <input
+                  id="consent-privacy-check"
+                  type="checkbox"
+                  checked={consentPrivacy}
+                  onChange={(e) => setConsentPrivacy(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus-visible:outline-2 focus-visible:outline-emerald-600 shrink-0 cursor-pointer"
+                />
+                <label htmlFor="consent-privacy-check" className="text-xs text-slate-800 leading-relaxed cursor-pointer">
+                  <strong>Health Data Processing Consent:</strong> I grant explicit consent to extract and translate discharge directions from this paperwork in accordance with the{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-semibold">
+                    Privacy Policy
+                  </a>{" "}
+                  and{" "}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-semibold">
+                    Terms of Service
+                  </a>.
+                </label>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowUploadConsentModal(false)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!consentAge || !consentPrivacy}
+                onClick={handleConfirmUploadConsent}
+                className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-600 ${
+                  consentAge && consentPrivacy
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                }`}
+                id="btn-confirm-upload-consent"
+              >
+                <Check className="w-4 h-4" aria-hidden="true" />
+                <span>Agree & Select Document</span>
               </button>
             </div>
           </div>

@@ -109,8 +109,9 @@ export default function ReviewDashboard() {
             <div className="flex items-center gap-1.5">
               <button 
                 onClick={fetchReviews}
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-600"
                 title="Refresh Review Queue"
+                aria-label="Refresh Review Queue"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
               </button>
