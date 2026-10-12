@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { 
-  getHealth, createCase, uploadDocument, processDocument, getCase, getCaseFacts, getFactEvidence, translateCase,
+  getHealth, createCase, uploadDocument, processDocument, getCase, getCaseFacts, getFactEvidence, translateCase, API_BASE,
   type Health, type CaseOut, type FactResponse, type EvidenceResponse
 } from "@/lib/api";
 import { 
   FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, CheckCircle2, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
-  ChevronRight, Activity, AlertCircle, ShieldCheck
+  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download
 } from "lucide-react";
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeCase, setActiveCase] = useState<CaseOut | null>(null);
@@ -28,6 +30,9 @@ export default function Home() {
   const [selectedFact, setSelectedFact] = useState<FactResponse | null>(null);
   const [evidence, setEvidence] = useState<EvidenceResponse[]>([]);
   const [isFetchingEvidence, setIsFetchingEvidence] = useState(false);
+
+  // Helpline copy feedback state
+  const [helplineCopied, setHelplineCopied] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +41,105 @@ export default function Home() {
       .then(setHealth)
       .catch((e: Error) => setError(e.message));
   }, []);
+
+  // Common upload pipeline
+  const uploadAndProcessFile = useCallback(async (file: File) => {
+    try {
+      setIsUploading(true);
+      setError(null);
+      
+      let caseId = activeCase?.id;
+      if (!caseId) {
+        const newCase = await createCase();
+        caseId = newCase.id;
+      }
+      
+      const doc = await uploadDocument(caseId, file);
+      await processDocument(doc.id);
+      
+      const c = await getCase(caseId);
+      setActiveCase(c);
+      setIsProcessing(true);
+      
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
+  }, [activeCase]);
+
+  // 1-Click Sample Hospital PDF loader
+  const handleLoadSample = useCallback(async (
+    samplePath: string = "/sample_medical_record.pdf", 
+    filename: string = "sample_discharge_summary.pdf",
+    targetSection?: string
+  ) => {
+    try {
+      setIsUploading(true);
+      setError(null);
+      const res = await fetch(samplePath);
+      const blob = await res.blob();
+      const file = new File([blob], filename, { type: "application/pdf" });
+      await uploadAndProcessFile(file);
+      
+      if (targetSection) {
+        setTimeout(() => {
+          const el = document.getElementById(targetSection);
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        }, 800);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load sample document");
+      setIsUploading(false);
+    }
+  }, [uploadAndProcessFile]);
+
+  // Handle custom events and URL parameters from Navbar / external links
+  useEffect(() => {
+    const handleUploadEvent = () => {
+      fileInputRef.current?.click();
+    };
+
+    const handleCarePlanEvent = () => {
+      if (activeCase) {
+        const el = document.getElementById("care-plan");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      } else {
+        handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
+      }
+    };
+
+    const handlePrescriptionsEvent = () => {
+      if (activeCase) {
+        const el = document.getElementById("prescriptions");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      } else {
+        handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "prescriptions");
+      }
+    };
+
+    window.addEventListener("carelynx:upload", handleUploadEvent);
+    window.addEventListener("carelynx:careplan", handleCarePlanEvent);
+    window.addEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
+
+    // Check URL params
+    const action = searchParams.get("action");
+    if (action === "upload") {
+      setTimeout(() => fileInputRef.current?.click(), 200);
+    } else if (action === "demo") {
+      handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
+    } else if (action === "prescriptions") {
+      handlePrescriptionsEvent();
+    } else if (action === "care-plan") {
+      handleCarePlanEvent();
+    }
+
+    return () => {
+      window.removeEventListener("carelynx:upload", handleUploadEvent);
+      window.removeEventListener("carelynx:careplan", handleCarePlanEvent);
+      window.removeEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
+    };
+  }, [activeCase, handleLoadSample, searchParams]);
 
   // Close popup modal on ESC key
   useEffect(() => {
@@ -69,7 +173,7 @@ export default function Home() {
       } catch (err) {
         console.error(err);
       }
-    }, 1500);
+    }, 1200);
     
     return () => clearInterval(interval);
   }, [activeCase, isProcessing]);
@@ -80,7 +184,11 @@ export default function Home() {
       setLanguage("en");
       return;
     }
-    if (!activeCase) return;
+    if (!activeCase) {
+      await handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf");
+      setLanguage(targetLang);
+      return;
+    }
     
     setIsTranslating(true);
     try {
@@ -106,45 +214,10 @@ export default function Home() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // 1-Click Sample Hospital PDF loader
-  const handleLoadSample = async (samplePath: string = "/sample_medical_record.pdf", filename: string = "sample_discharge_summary.pdf") => {
-    try {
-      setIsUploading(true);
-      setError(null);
-      const res = await fetch(samplePath);
-      const blob = await res.blob();
-      const file = new File([blob], filename, { type: "application/pdf" });
-      await uploadAndProcessFile(file);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load sample document");
-      setIsUploading(false);
-    }
-  };
-
-  // Common upload pipeline
-  const uploadAndProcessFile = async (file: File) => {
-    try {
-      setIsUploading(true);
-      setError(null);
-      
-      let caseId = activeCase?.id;
-      if (!caseId) {
-        const newCase = await createCase();
-        caseId = newCase.id;
-      }
-      
-      const doc = await uploadDocument(caseId, file);
-      await processDocument(doc.id);
-      
-      const c = await getCase(caseId);
-      setActiveCase(c);
-      setIsProcessing(true);
-      
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploading(false);
-    }
+  const copyHelplineNumber = () => {
+    navigator.clipboard.writeText("1800-CARELYNX");
+    setHelplineCopied(true);
+    setTimeout(() => setHelplineCopied(false), 2500);
   };
   
   const viewEvidence = async (fact: FactResponse) => {
@@ -204,21 +277,17 @@ export default function Home() {
   const appointments = facts.filter(f => f.fact_type === "follow_up" && f.status !== "REJECTED");
   const instructions = facts.filter(f => (f.fact_type === "instruction" || f.fact_type === "documented_condition" || f.fact_type === "encounter_date") && f.status !== "REJECTED");
 
-  const verifiedCount = facts.filter(f => f.status === "VERIFIED").length;
-  const reviewCount = facts.filter(f => f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED").length;
-  const conflictCount = facts.filter(f => f.status === "CONFLICT_DETECTED").length;
-
   return (
     <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-12">
       {/* Global Error Banner */}
       {error && (
-        <div className="p-4 border border-rose-200 bg-rose-50 text-rose-800 rounded-2xl text-sm flex items-start gap-3 shadow-xs no-print">
+        <div className="p-4 border border-rose-200 bg-rose-50 text-rose-800 rounded-2xl text-sm flex items-start gap-3 shadow-xs no-print fade-in">
           <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-semibold text-rose-900">Processing Notification</p>
             <p className="text-xs text-rose-700 mt-0.5">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-700 p-1">
+          <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -226,8 +295,8 @@ export default function Home() {
 
       {/* Main View: Landing Hero OR Active Case Care Plan */}
       {!activeCase ? (
-        <div className="flex flex-col gap-16">
-          {/* Hero Section matching MindWell Reference Image 1 */}
+        <div className="flex flex-col gap-16" id="hero">
+          {/* Hero Section */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center pt-4 sm:pt-8 pb-4">
             {/* Left Hero Content */}
             <div className="lg:col-span-7 flex flex-col gap-6">
@@ -242,7 +311,7 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Action Buttons Group matching MindWell color coding */}
+              {/* Action Buttons Group */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <input 
                   type="file" 
@@ -257,7 +326,7 @@ export default function Home() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading || isProcessing}
-                  className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center gap-2"
+                  className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer"
                   id="hero-btn-upload"
                 >
                   {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
@@ -266,12 +335,12 @@ export default function Home() {
 
                 {/* 2. Vibrant Mint Green Button */}
                 <button
-                  onClick={() => handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf")}
+                  onClick={() => handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan")}
                   disabled={isUploading || isProcessing}
-                  className="px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm shadow-md shadow-emerald-500/20 transition-all flex items-center gap-2"
+                  className="px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm shadow-md shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer"
                   id="hero-btn-demo"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                   <span>Demo Hospital Report</span>
                 </button>
 
@@ -279,7 +348,7 @@ export default function Home() {
                 <button
                   onClick={() => handleLoadSample("/sample_conflicting_prescription.pdf", "sample_conflicting_prescription.pdf")}
                   disabled={isUploading || isProcessing}
-                  className="px-5 py-3.5 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-950 font-bold text-sm border border-sky-300 transition-all flex items-center gap-2 shadow-xs"
+                  className="px-5 py-3.5 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-950 font-bold text-sm border border-sky-300 transition-all flex items-center gap-2 shadow-xs cursor-pointer"
                   id="hero-btn-conflict"
                 >
                   <AlertTriangle className="w-4 h-4 text-sky-800" />
@@ -289,7 +358,7 @@ export default function Home() {
                 {/* 4. Emergency Crimson Button */}
                 <a
                   href="/review"
-                  className="px-5 py-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-md shadow-rose-500/20 transition-all flex items-center gap-2"
+                  className="px-5 py-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-md shadow-rose-500/20 transition-all flex items-center gap-2 cursor-pointer"
                   id="hero-btn-emergency"
                 >
                   <ShieldAlert className="w-4 h-4" />
@@ -297,20 +366,35 @@ export default function Home() {
                 </a>
               </div>
 
-              {/* Floating Hotline Pill matching image */}
-              <div className="pt-2">
-                <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-white/90 border border-slate-300 text-xs text-slate-800 shadow-xs backdrop-blur-md">
+              {/* Interactive 24/7 Helpline Pill */}
+              <div className="pt-2 flex items-center gap-3">
+                <a
+                  href="tel:1800227359"
+                  onClick={(e) => {
+                    if (!("ontouchstart" in window)) {
+                      e.preventDefault();
+                      copyHelplineNumber();
+                    }
+                  }}
+                  className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-white/95 border border-slate-300 text-xs text-slate-800 shadow-xs hover:border-emerald-500 transition-colors backdrop-blur-md group cursor-pointer"
+                  title="Click to call or copy helpline number"
+                >
                   <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse shrink-0" />
-                  <span className="font-bold text-slate-900">Carelynx Patient Helpline:</span>
-                  <span className="font-mono text-slate-700 font-semibold">1800-CARELYNX (24/7 Support)</span>
-                </div>
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <PhoneCall className="w-3.5 h-3.5 text-rose-600" />
+                    Carelynx Patient Helpline:
+                  </span>
+                  <span className="font-mono text-slate-700 font-semibold">1800-CARELYNX</span>
+                  <span className="text-[11px] text-brand font-semibold hidden sm:inline">
+                    {helplineCopied ? "✓ Copied!" : "(24/7 Support)"}
+                  </span>
+                </a>
               </div>
             </div>
 
             {/* Right Hero Feature Showcase Card */}
             <div className="lg:col-span-5 flex justify-center">
               <div className="w-full max-w-md bg-gradient-to-br from-emerald-100/60 via-teal-50/70 to-sky-100/50 rounded-3xl p-8 border border-emerald-200/60 shadow-xl shadow-emerald-500/5 flex flex-col items-center justify-center text-center relative overflow-hidden">
-                {/* Floating pill tags */}
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-semibold text-emerald-800 border border-emerald-100 shadow-xs flex items-center gap-1">
                   <HeartHandshake className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Safe Space</span>
@@ -342,14 +426,14 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Complete Feature Suite Grid matching MindWell Reference Image 2 */}
-          <section className="flex flex-col gap-10">
+          {/* Complete Feature Suite Grid */}
+          <section className="flex flex-col gap-10" id="features">
             <div className="text-center max-w-2xl mx-auto">
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
                 Complete Discharge Care Navigation
               </h2>
               <p className="text-sm sm:text-base text-slate-600 mt-2">
-                Five integrated features designed to provide comprehensive, accessible, and error-free post-discharge support for patients and caregivers.
+                Integrated features designed to provide comprehensive, accessible, and error-free post-discharge support for patients and caregivers.
               </p>
             </div>
 
@@ -370,8 +454,8 @@ export default function Home() {
                   </div>
                 </div>
                 <button 
-                  onClick={() => handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf")}
-                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 self-start"
+                  onClick={() => handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan")}
+                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 self-start cursor-pointer"
                 >
                   <span>Try Demo Report</span>
                   <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -393,9 +477,13 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-sky-700 flex items-center gap-1 self-start">
-                  <span>Zero Dosage Modification</span>
-                </span>
+                <button 
+                  onClick={() => handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "prescriptions")}
+                  className="text-xs font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 self-start cursor-pointer"
+                >
+                  <span>View Medication Schedule</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
 
               {/* Feature 3: Appointment Tracker */}
@@ -413,9 +501,13 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-purple-700 flex items-center gap-1 self-start">
-                  <span>Chronological View</span>
-                </span>
+                <button 
+                  onClick={() => handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "appointments")}
+                  className="text-xs font-semibold text-purple-700 hover:text-purple-800 flex items-center gap-1 self-start cursor-pointer"
+                >
+                  <span>View Appointment Timeline</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
 
               {/* Feature 4: Conflict Guard */}
@@ -435,7 +527,7 @@ export default function Home() {
                 </div>
                 <button 
                   onClick={() => handleLoadSample("/sample_conflicting_prescription.pdf", "sample_conflicting_prescription.pdf")}
-                  className="text-xs font-semibold text-rose-700 hover:text-rose-800 flex items-center gap-1 self-start"
+                  className="text-xs font-semibold text-rose-700 hover:text-rose-800 flex items-center gap-1 self-start cursor-pointer"
                 >
                   <span>Test Conflict Demo</span>
                   <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -457,9 +549,13 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-teal-700 flex items-center gap-1 self-start">
-                  <span>English • हिन्दी • ગુજરાતી</span>
-                </span>
+                <button 
+                  onClick={() => handleLanguageChange("hi")}
+                  className="text-xs font-semibold text-teal-700 hover:text-teal-800 flex items-center gap-1 self-start cursor-pointer"
+                >
+                  <span>Try Hindi / Gujarati Mode</span>
+                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
 
               {/* Feature 6: Clinical Audit Hub */}
@@ -479,7 +575,7 @@ export default function Home() {
                 </div>
                 <a 
                   href="/review"
-                  className="text-xs font-semibold text-indigo-700 hover:text-indigo-800 flex items-center gap-1 self-start"
+                  className="text-xs font-semibold text-indigo-700 hover:text-indigo-800 flex items-center gap-1 self-start cursor-pointer"
                 >
                   <span>Open Audit Queue</span>
                   <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -487,7 +583,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Bottom Stats Banner matching MindWell Reference Image 2 */}
+            {/* Bottom Stats Banner */}
             <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-slate-200/80 shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-6 text-center divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
               <div className="flex flex-col items-center justify-center pt-2 sm:pt-0">
                 <span className="text-3xl font-extrabold text-slate-900">24/7</span>
@@ -506,7 +602,7 @@ export default function Home() {
         </div>
       ) : (
         /* Active Case Document Navigator */
-        <div className="flex flex-col gap-8 fade-in">
+        <div className="flex flex-col gap-8 fade-in" id="care-plan">
           {/* Active Case Top Control Bar */}
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-slate-200/80 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
@@ -534,21 +630,21 @@ export default function Home() {
                 <Globe className="w-3.5 h-3.5 text-slate-600 ml-2 mr-1" />
                 <button 
                   onClick={() => handleLanguageChange("en")} 
-                  className={`px-3 py-1 rounded-full transition-all ${language === 'en' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                  className={`px-3 py-1 rounded-full transition-all cursor-pointer ${language === 'en' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
                 >
                   English
                 </button>
                 <button 
                   onClick={() => handleLanguageChange("hi")} 
                   disabled={isTranslating} 
-                  className={`px-3 py-1 rounded-full transition-all ${language === 'hi' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                  className={`px-3 py-1 rounded-full transition-all cursor-pointer ${language === 'hi' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
                 >
                   हिन्दी
                 </button>
                 <button 
                   onClick={() => handleLanguageChange("gu")} 
                   disabled={isTranslating} 
-                  className={`px-3 py-1 rounded-full transition-all ${language === 'gu' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
+                  className={`px-3 py-1 rounded-full transition-all cursor-pointer ${language === 'gu' ? 'bg-brand text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 font-semibold'}`}
                 >
                   ગુજરાતી
                 </button>
@@ -557,15 +653,19 @@ export default function Home() {
 
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-700" />
                 <span>Print Plan</span>
               </button>
 
               <button
-                onClick={() => { setActiveCase(null); setFacts([]); }}
-                className="px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold transition-colors"
+                onClick={() => { 
+                  setActiveCase(null); 
+                  setFacts([]);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
               >
                 New Encounter
               </button>
@@ -576,12 +676,19 @@ export default function Home() {
           <div className="flex items-center gap-3 overflow-x-auto pb-1 no-print">
             <span className="text-xs font-bold text-slate-600 uppercase tracking-wider shrink-0">Attached Files:</span>
             {activeCase.documents.map(doc => (
-              <div key={doc.id} className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-300 text-xs shrink-0 shadow-xs">
+              <a
+                key={doc.id}
+                href={`${API_BASE}/documents/${doc.id}/file`}
+                target="_blank"
+                rel="noreferrer"
+                title="Click to view original source document"
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white hover:bg-slate-50 border border-slate-300 hover:border-emerald-500 text-xs shrink-0 shadow-xs transition-colors group cursor-pointer"
+              >
                 <FileText className="w-3.5 h-3.5 text-brand" />
                 <span className="font-mono text-slate-900 font-semibold">{doc.filename}</span>
                 <span className="text-slate-600 text-[11px] capitalize font-medium">• {doc.processing_status.toLowerCase()}</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" />
-              </div>
+                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 ml-0.5" />
+              </a>
             ))}
           </div>
 
@@ -601,7 +708,7 @@ export default function Home() {
               </div>
               <a
                 href="/review"
-                className="px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold whitespace-nowrap shadow-xs transition-colors"
+                className="px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold whitespace-nowrap shadow-xs transition-colors cursor-pointer"
               >
                 View in Review Queue →
               </a>
@@ -619,7 +726,7 @@ export default function Home() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* 1. Critical Warnings & Precautions */}
               {warnings.length > 0 && (
-                <section className="col-span-1 lg:col-span-2 p-6 rounded-3xl bg-rose-50/70 border border-rose-200/80 flex flex-col gap-4 shadow-xs">
+                <section className="col-span-1 lg:col-span-2 p-6 rounded-3xl bg-rose-50/70 border border-rose-200/80 flex flex-col gap-4 shadow-xs" id="warnings">
                   <div className="flex items-center gap-2.5 border-b border-rose-200 pb-3">
                     <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
                       <AlertTriangle className="w-4 h-4" />
@@ -654,7 +761,7 @@ export default function Home() {
               )}
 
               {/* 2. Upcoming Follow-up Appointments */}
-              <section className="p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs">
+              <section className="p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs" id="appointments">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
@@ -712,7 +819,7 @@ export default function Home() {
               </section>
 
               {/* 3. Prescription Medications */}
-              <section className="p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs">
+              <section className="p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs" id="prescriptions">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
@@ -761,7 +868,7 @@ export default function Home() {
               </section>
 
               {/* 4. Home Care & Recovery Instructions */}
-              <section className="col-span-1 lg:col-span-2 p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs">
+              <section className="col-span-1 lg:col-span-2 p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs" id="instructions">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
@@ -802,7 +909,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Floating Centered Verbatim Evidence Modal Pop-Up in Light Pastel Aesthetic */}
+      {/* Floating Centered Verbatim Evidence Modal Pop-Up */}
       {selectedFact && (
         <div 
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 no-print animate-in fade-in duration-150"
@@ -828,7 +935,7 @@ export default function Home() {
               </div>
               <button 
                 onClick={() => setSelectedFact(null)} 
-                className="p-1.5 rounded-full bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors border border-slate-200"
+                className="p-1.5 rounded-full bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors border border-slate-200 cursor-pointer"
                 aria-label="Close evidence popup"
               >
                 <X className="w-4 h-4" />
@@ -836,7 +943,7 @@ export default function Home() {
             </div>
 
             {/* Modal Scrollable Body */}
-            <div className="p-6 overflow-y-auto flex flex-col gap-5">
+            <div className="p-6 overflow-y-auto flex flex-col gap-5 custom-scrollbar">
               {/* Fact Summary */}
               <div>
                 <span className="text-[11px] text-slate-700 uppercase tracking-wider font-bold">Extracted Clinical Fact</span>
@@ -906,7 +1013,7 @@ export default function Home() {
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex justify-end">
               <button
                 onClick={() => setSelectedFact(null)}
-                className="px-5 py-2 rounded-full bg-brand hover:bg-brand-light text-white text-xs font-semibold transition-colors shadow-xs"
+                className="px-5 py-2 rounded-full bg-brand hover:bg-brand-light text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer"
               >
                 Close Proof
               </button>
@@ -915,5 +1022,17 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex items-center justify-center p-12">
+        <Loader2 className="w-8 h-8 animate-spin text-brand" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

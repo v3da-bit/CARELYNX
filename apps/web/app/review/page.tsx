@@ -7,7 +7,7 @@ import {
 } from "@/lib/api";
 import { 
   AlertTriangle, CheckCircle2, XCircle, FileText, Loader2, 
-  ShieldAlert, UserCheck, ChevronRight, Stethoscope, Clock, Check
+  ShieldAlert, UserCheck, ChevronRight, Stethoscope, Clock, Check, RefreshCw
 } from "lucide-react";
 
 export default function ReviewDashboard() {
@@ -87,18 +87,27 @@ export default function ReviewDashboard() {
   });
 
   return (
-    <div className="flex-1 flex h-[calc(100vh-4rem)] overflow-hidden bg-bg">
+    <div className="flex-1 flex h-[calc(100dvh-4.5rem)] max-h-[calc(100dvh-4.5rem)] overflow-hidden bg-bg">
       {/* Sidebar: Case Queue */}
-      <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full z-10 shrink-0">
-        <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3">
+      <aside className="w-80 sm:w-96 border-r border-line bg-surface/80 backdrop-blur flex flex-col h-full z-10 shrink-0 overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-line flex flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="font-bold text-base text-slate-800 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-500" />
               <span>Clinical Review Queue</span>
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 font-mono">
-              {reviews.length} Open
-            </span>
+            <div className="flex items-center gap-1.5">
+              <button 
+                onClick={fetchReviews}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                title="Refresh Review Queue"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
+              </button>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 font-mono">
+                {reviews.length} Open
+              </span>
+            </div>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">
             Safety flags requiring human verification: document conflicts, OCR quality, or unverified claims.
@@ -110,7 +119,7 @@ export default function ReviewDashboard() {
               <button
                 key={sev}
                 onClick={() => setFilterSeverity(sev)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${filterSeverity === sev ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${filterSeverity === sev ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
                 {sev}
               </button>
@@ -118,8 +127,8 @@ export default function ReviewDashboard() {
           </div>
         </div>
         
-        {/* Queue Items List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        {/* Queue Items List (Slidebar scroll) */}
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
           {loading ? (
             <div className="p-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
               <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
@@ -136,7 +145,7 @@ export default function ReviewDashboard() {
               <button
                 key={r.id}
                 onClick={() => selectReview(r)}
-                className={`w-full text-left p-4 hover:bg-slate-50/80 transition-all flex flex-col gap-2 ${selectedReview?.id === r.id ? 'bg-emerald-50/60 border-l-4 border-emerald-600 shadow-sm' : ''}`}
+                className={`w-full text-left p-4 hover:bg-slate-50/80 transition-all flex flex-col gap-2 cursor-pointer ${selectedReview?.id === r.id ? 'bg-emerald-50/60 border-l-4 border-emerald-600 shadow-sm' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${r.severity === 'HIGH' ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
@@ -159,7 +168,7 @@ export default function ReviewDashboard() {
       </aside>
 
       {/* Main: Clinical Comparator Workspace */}
-      <main className="flex-1 h-full overflow-y-auto bg-slate-50/40 p-6 sm:p-8">
+      <main className="flex-1 h-full overflow-y-auto bg-slate-50/40 p-6 sm:p-8 custom-scrollbar">
         {selectedReview ? (
           <div className="max-w-4xl mx-auto flex flex-col gap-6 fade-in">
             {/* Header Callout */}
@@ -226,7 +235,7 @@ export default function ReviewDashboard() {
                                   name="winning_fact"
                                   checked={isWinning}
                                   onChange={() => setSelectedWinningFact(fact.id)}
-                                  className="accent-emerald-600 w-3.5 h-3.5"
+                                  className="accent-emerald-600 w-3.5 h-3.5 cursor-pointer"
                                 />
                                 <span>Select as Correct</span>
                               </label>
@@ -283,7 +292,7 @@ export default function ReviewDashboard() {
                 <button
                   onClick={() => handleResolve("approve")}
                   disabled={resolving || (selectedReview.reason_code === 'CONFLICT' && !selectedWinningFact)}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm cursor-pointer"
                 >
                   {resolving ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>}
                   <span>Approve & Verify Statement{selectedReview.reason_code === 'CONFLICT' ? ' (Resolve Conflict)' : ''}</span>
@@ -292,7 +301,7 @@ export default function ReviewDashboard() {
                 <button
                   onClick={() => handleResolve("reject")}
                   disabled={resolving}
-                  className="py-2.5 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40"
+                  className="py-2.5 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   {resolving ? <Loader2 className="w-4 h-4 animate-spin"/> : <XCircle className="w-4 h-4"/>}
                   <span>Reject Statement</span>
@@ -313,4 +322,3 @@ export default function ReviewDashboard() {
     </div>
   );
 }
-

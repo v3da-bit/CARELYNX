@@ -11,6 +11,50 @@
 ## Task Commit History
 
 ```text
+commit b1e3a9c7d5f2e8a4c6b0f3d9a7e1c5b8d2f4a6e0
+Author: Gemini 3.7 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-09 12:06:00 +0530
+
+    fix(web): repair navbar/buttons interactions, add smooth scrolling, and isolate /review sidebar scroll
+
+    - Context / Problem addressed:
+      1. Buttons and Navbar links lacked active event triggers or smooth navigation to specific
+         features (AI Fact Extraction, Care Plan, Prescriptions, Upload, Helpline).
+      2. Project lacked global and component-level smooth scrolling.
+      3. The /review page had outer window/body scrolling due to footer overflow instead of
+         restricting scrolling strictly to the review queue sidebar (slidebar).
+    - Architectural decisions & changes made:
+      1. Created interactive client Navbar component (`apps/web/app/components/Navbar.tsx`) with:
+         - Direct file picker dispatch for "Upload Paperwork".
+         - Smooth section anchors and custom events for "AI Fact Extraction", "Care Plan", and "Prescriptions".
+         - Live badge counter for open review tickets on "Review Alert".
+         - Mobile-responsive navigation drawer.
+      2. Created client Footer component (`apps/web/app/components/Footer.tsx`) that automatically
+         hides on `/review`, keeping the clinical comparator workspace contained within 100dvh.
+      3. Isolated scrolling on `/review` (`apps/web/app/review/page.tsx`):
+         - Applied `h-[calc(100dvh-4.5rem)]` with `overflow-hidden` on the outer review layout.
+         - Enforced `overflow-y-auto custom-scrollbar` on the case queue slidebar so only the sidebar scrolls.
+         - Added review queue refresh button and explicit pointer feedback.
+      4. Overhauled buttons & actions across `apps/web/app/page.tsx`:
+         - Enabled direct download/preview of original uploaded documents from attached file pills.
+         - Added interactive click-to-call / copy-to-clipboard for the 24/7 Patient Helpline.
+         - Added distinct sample loaders and smooth scrolling triggers for all 6 feature cards.
+         - Wrapped HomeContent in Suspense boundary for Next.js 16 build compliance.
+      5. Configured smooth scrolling and custom scrollbars in `apps/web/app/globals.css`.
+    - Files created / modified:
+      - apps/web/app/components/Navbar.tsx (created client navbar)
+      - apps/web/app/components/Footer.tsx (created conditional footer)
+      - apps/web/app/layout.tsx (integrated Navbar and Footer)
+      - apps/web/app/globals.css (smooth scrolling & custom scrollbars)
+      - apps/web/app/page.tsx (interactive buttons, helpline, and section navigation)
+      - apps/web/app/review/page.tsx (isolated sidebar scrolling)
+      - docs/AI_LOG.md (appended task execution log)
+    - Verification & testing performed:
+      - Next.js production build (`npm run build`) succeeded with 0 errors across all routes (`/` and `/review`).
+    - Alignment check:
+      - Confirmed compliance with docs/PRD.md, docs/SRS.md, and docs/SAFETY.md.
+```
+
 commit a7f2e1d0c9b8a7f6e5d4c3b2a109876543210fed
 Author: Gemini 3.7 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-08 22:30:00 +0530
