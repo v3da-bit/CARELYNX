@@ -23,6 +23,7 @@ export default function ReviewDashboard() {
   const [resolving, setResolving] = useState(false);
   const [selectedWinningFact, setSelectedWinningFact] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<"ALL" | "HIGH" | "MEDIUM" | "LOW">("ALL");
 
   const fetchReviews = async () => {
@@ -30,8 +31,9 @@ export default function ReviewDashboard() {
       setLoading(true);
       const data = await getOpenReviews();
       setReviews(data);
+      setActionError(null);
     } catch (err) {
-      console.error(err);
+      setActionError(err instanceof Error ? err.message : "Could not load the review queue.");
     } finally {
       setLoading(false);
     }
@@ -74,18 +76,29 @@ export default function ReviewDashboard() {
 
   const handleResolve = async (decision: "approve" | "reject") => {
     if (!selectedReview) return;
+    // The rationale is part of the audit trail: never auto-fill it.
+    if (!notes.trim()) {
+      setActionError("Enter a clinical rationale before resolving.");
+      return;
+    }
+    const isConflict = Boolean(selectedReview.conflict_id);
+    if (decision === "approve" && isConflict && !selectedWinningFact) {
+      setActionError("Select the correct statement before approving.");
+      return;
+    }
     setResolving(true);
+    setActionError(null);
     try {
       await resolveReview(selectedReview.id, {
-        decision,
-        resolution_notes: notes || (decision === "approve" ? "Verified and approved by clinician" : "Rejected due to clinical inconsistency"),
+        decision: decision === "reject" ? "REJECT" : isConflict ? "SELECT_SOURCE" : "APPROVE",
+        resolution_notes: notes.trim(),
         reviewer_id: "clinician-reviewer-1",
-        winning_fact_id: selectedWinningFact || undefined
+        winning_fact_id: decision === "approve" && isConflict ? selectedWinningFact ?? undefined : undefined,
       });
       setSelectedReview(null);
       await fetchReviews();
     } catch (err) {
-      console.error("Failed to resolve", err);
+      setActionError(err instanceof Error ? err.message : "Could not resolve this review.");
     } finally {
       setResolving(false);
     }
@@ -321,6 +334,9 @@ export default function ReviewDashboard() {
                   <span>Reject Statement</span>
                 </button>
               </div>
+              {actionError && (
+                <p role="alert" className="text-xs font-semibold text-rose-700">{actionError}</p>
+              )}
             </div>
           </div>
         ) : (

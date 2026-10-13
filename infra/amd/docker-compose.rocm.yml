@@ -1,23 +1,27 @@
-# Alias of docker-compose.yml for CLX-011 / Phase 8 docs that reference this filename.
-# Usage (ROCm Linux host with /dev/kfd):
+# vLLM OpenAI-compatible server on an AMD GPU (ROCm). Linux host with /dev/kfd + /dev/dri required.
 #   docker compose -f infra/amd/docker-compose.rocm.yml up -d
-
-version: '3.8'
-
+# Endpoint: http://localhost:8080/v1  (matches INFERENCE_BASE_URL in .env.example)
 services:
   vllm-rocm:
-    image: rocm/vllm-rocm:latest
+    image: rocm/vllm:latest
     container_name: carelynx-vllm-amd
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
+    group_add:
+      - video
+    security_opt:
+      - seccomp=unconfined
+    ipc: host
+    shm_size: 16g
     ports:
       - "8080:8000"
-    ipc: host
     environment:
-      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     command: >
-      --model meta-llama/Llama-3-8B-Instruct
-      --dtype half
-      --max-model-len 4096
+      vllm serve Qwen/Qwen2.5-7B-Instruct
+      --host 0.0.0.0 --port 8000
+      --max-model-len 8192
       --gpu-memory-utilization 0.9

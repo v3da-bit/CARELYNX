@@ -1,7 +1,6 @@
 # Secrets / env (Never commit or push any env files - public repository security)
 .env
 .env.*
-.env.example
 *.env
 *.env.*
 
@@ -26,7 +25,9 @@ apps/api/var/
 *.db
 *.sqlite
 *.sqlite3
-storage/
+/storage/
+apps/api/storage/
+!apps/api/app/storage/
 
 # Generated evaluation outputs
 tests/evaluation/results/

@@ -1,52 +1,161 @@
+# CARELYNX — full stack. Settings come from a root `.env` (copy .env.example).
+#
+#   docker compose up -d --build                     # proxy + web + api + postgres (rule_based AI, no GPU)
+#   docker compose --profile amd up -d --build       # + vLLM on an AMD GPU (ROCm)
+#   docker compose --profile nvidia up -d --build    # + vLLM on an NVIDIA GPU (CUDA)
+#
+# Open http://<host>:${HTTP_PORT:-80}. Only the proxy is published; api/web/db/llm stay on the
+# internal network. With an LLM profile also set INFERENCE_PROVIDER=openai_compat (+ a truthful
+# INFERENCE_HARDWARE_LABEL) in .env. Full guide: README.md §7.
+
+x-restart: &restart
+  restart: unless-stopped
+
 services:
+  proxy:
+    <<: *restart
+    image: caddy:2.8-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./infra/docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  web:
+    <<: *restart
+    image: ${REGISTRY:-carelynx}/web:${TAG:-latest}
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${DOCKER_WEB_API_BASE_URL:-/api/v1}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *restart
+    image: ${REGISTRY:-carelynx}/api:${TAG:-latest}
+    build:
+      context: ./apps/api
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-carelynx}:${POSTGRES_PASSWORD:-change-me-locally}@db:5432/${POSTGRES_DB:-carelynx}
+      CORS_ORIGINS: ${DOCKER_CORS_ORIGINS:-http://localhost}
+      STORAGE_LOCAL_DIR: /data/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+      INFERENCE_PROVIDER: ${INFERENCE_PROVIDER:-rule_based}
+      # `llm` is the network alias of whichever GPU profile is running. DOCKER_* names keep the
+      # local-dev values in .env (localhost URLs) from leaking into containers.
+      INFERENCE_BASE_URL: ${DOCKER_INFERENCE_BASE_URL:-http://llm:8000/v1}
+      INFERENCE_MODEL: ${INFERENCE_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      INFERENCE_API_KEY: ${INFERENCE_API_KEY:-}
+      INFERENCE_TIMEOUT_S: ${INFERENCE_TIMEOUT_S:-60}
+      INFERENCE_HARDWARE_LABEL: ${INFERENCE_HARDWARE_LABEL:-local-cpu}
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
+      SAFETY_MIN_PAGE_QUALITY: ${SAFETY_MIN_PAGE_QUALITY:-0.85}
+      SAFETY_MIN_FACT_CONFIDENCE: ${SAFETY_MIN_FACT_CONFIDENCE:-0.80}
+    volumes:
+      - docstore:/data/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
+    <<: *restart
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-carelynx}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-locally}
       POSTGRES_DB: ${POSTGRES_DB:-carelynx}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-carelynx}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-carelynx} -d ${POSTGRES_DB:-carelynx}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+  # ---------- Optional LLM (OpenAI-compatible vLLM). The API falls back to rule_based, with honest
+  # provenance, while the model is still downloading/loading or if the GPU host is unavailable. ----------
+  llm-amd:
+    <<: *restart
+    profiles: ["amd"]
+    image: ${VLLM_ROCM_IMAGE:-rocm/vllm:latest}
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    security_opt:
+      - seccomp=unconfined
+    ipc: host
+    shm_size: 16g
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-carelynx}:${POSTGRES_PASSWORD:-change-me-locally}@db:5432/${POSTGRES_DB:-carelynx}
-      CORS_ORIGINS: http://localhost:3000
-      INFERENCE_PROVIDER: ${INFERENCE_PROVIDER:-rule_based}
-      INFERENCE_BASE_URL: ${INFERENCE_BASE_URL:-}
-      INFERENCE_MODEL: ${INFERENCE_MODEL:-}
-      INFERENCE_API_KEY: ${INFERENCE_API_KEY:-}
-      INFERENCE_HARDWARE_LABEL: ${INFERENCE_HARDWARE_LABEL:-local-cpu}
-      STORAGE_LOCAL_DIR: /data/storage
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
     volumes:
-      - docstore:/data/storage
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+      - hf_cache:/root/.cache/huggingface
+    command: >
+      vllm serve ${INFERENCE_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      --host 0.0.0.0 --port 8000
+      --max-model-len ${LLM_MAX_MODEL_LEN:-8192}
+      --gpu-memory-utilization ${LLM_GPU_MEMORY_UTILIZATION:-0.9}
+    networks:
+      default:
+        aliases: [llm]
+    healthcheck: &llm-health
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30m  # first start downloads ~15 GB of weights
 
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
-    ports:
-      - "3000:3000"
-    depends_on:
-      - api
+  llm-nvidia:
+    <<: *restart
+    profiles: ["nvidia"]
+    image: ${VLLM_CUDA_IMAGE:-vllm/vllm-openai:latest}
+    ipc: host
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    # The vllm-openai image's entrypoint is the server; only arguments go here.
+    command: >
+      --model ${INFERENCE_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      --host 0.0.0.0 --port 8000
+      --max-model-len ${LLM_MAX_MODEL_LEN:-8192}
+      --gpu-memory-utilization ${LLM_GPU_MEMORY_UTILIZATION:-0.9}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      default:
+        aliases: [llm]
+    healthcheck: *llm-health
 
 volumes:
   pgdata:
   docstore:
+  caddy_data:
+  caddy_config:
+  hf_cache:

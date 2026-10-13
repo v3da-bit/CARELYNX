@@ -11,6 +11,141 @@
 ## Task Commit History
 
 ```text
+commit (uncommitted — branch fix/audit-pending-work)
+Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
+Date:   2026-10-12 21:00:00 +0530
+
+    docs: merge /docs copy drafts into docs/PRD, SRS and ARCHITECTURE; remove /docs copy
+
+    - Context / Problem addressed:
+      Two parallel spec sets existed (/docs and the older /docs copy); the copy held content /docs lacked.
+    - Changes made:
+      1. ARCHITECTURE.md 1.3.0: LLM validation flow, security secrets/logging rules + clearly marked targets
+         (4-role auth, encryption at rest), end-to-end data flow, safety architecture, observability map,
+         Docker deployment, future architecture.
+      2. PRD.md 1.2.0: product-experience mockups, safety product requirements, extra metrics ("do not
+         claim before measuring"), hackathon demo, expanded roadmap and long-term vision.
+      3. SRS.md 1.2.0: FR-018 AMD deployment path, FR-019 application-level confidence, NFR-006..009,
+         safety triggers (verified against code), testing requirements, acceptance criteria 9-12; fixed
+         stale FR-015 reviewer-key wording (role header is in use).
+      4. References in TEAM.md, IMPLEMENTATION_PLAN.md, DEVELOPMENT_PLAN.md updated; /docs copy removed.
+    - Alignment check: unimplemented items are labelled as targets; no capability is claimed that the code lacks.
+
+commit (uncommitted — branch fix/audit-pending-work)
+Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
+Date:   2026-10-12 20:30:00 +0530
+
+    feat(infra): deploy-anywhere Docker stack with Caddy proxy and AMD/NVIDIA LLM profiles
+
+    - Context / Problem addressed:
+      The web image baked http://localhost:8000 into the bundle (broken on any remote host), the LLM
+      lived only in a separate compose file, and the web image shipped full node_modules.
+    - Architectural decisions & changes made:
+      1. infra/docker/Caddyfile + `proxy` service: single public origin; /api/* -> api, rest -> web;
+         SITE_ADDRESS=<domain> enables automatic HTTPS. Web builds with relative /api/v1.
+      2. docker-compose.yml: healthchecks, restart policies, internal-only api/web/db, registry image
+         names, opt-in `amd` (rocm/vllm) and `nvidia` (vllm/vllm-openai) profiles aliased `llm`.
+         DOCKER_* variables keep local-dev localhost URLs in .env out of containers.
+      3. apps/web/Dockerfile: multi-stage Next.js standalone build (NEXT_OUTPUT=standalone only in
+         Docker; local dev/build unchanged). apps/api/Dockerfile: uvicorn --proxy-headers.
+      4. .env.example: appended a Docker deployment block (no existing lines changed). README §7 rewritten.
+         infra/amd compose files kept as-is.
+    - Verification & testing performed:
+      - `docker compose config` valid for default, --profile amd, --profile nvidia.
+      - Built images (api 495 MB, web 334 MB); full stack healthy; Chrome via LAN IP (not localhost):
+        upload -> process on Postgres -> care plan, 6-language badges, Read Aloud, /review — no JS errors.
+      - 12 MB upload through the proxy -> 400 UPLOAD_ERROR. Test stack, volumes and images removed.
+      - Not run: the GPU profiles (no AMD/NVIDIA GPU here) and automatic HTTPS (needs a public domain).
+    - Alignment check:
+      No stack or scope change; AMD path documented truthfully (no AMD run claimed).
+
+commit (uncommitted — branch fix/audit-pending-work)
+Author: Claude Opus 5.5 via Claude Code <claude-code@carelynx.local>
+Date:   2026-10-12 19:00:00 +0530
+
+    fix(all): remediate requirements audit across Member 1/2/3 and ship six-language care plan
+
+    - Context / Problem addressed:
+      A code-level audit found the "100% complete" status was inaccurate: demo Scenarios B/C produced
+      no facts or conflicts (extractor overfit to sample PDFs, hardcoded drug list, invented values);
+      review decisions were rejected by the API and approvals rejected facts; the REVIEW_RESOLVED audit
+      row was never committed; care-plan/audit endpoints were missing; reviewer "auth" was a spoofable
+      header; docker-compose referenced missing Dockerfiles; the UI showed unverified facts as verified
+      and invented a "Standard Dose"; translation sent unverified text to third parties unmasked.
+    - CORRECTION of earlier entries: the "8.6ms latency" / "sub-10ms on AMD hardware" figures logged on
+      2026-10-11 timed the CPU regex extractor only. No AMD GPU run has been recorded (CLX-020, blocked).
+    - Architectural decisions & changes made:
+      1. docs/API_CONTRACTS.md v2.0 is the binding contract (decisions APPROVE/REJECT/SELECT_SOURCE/
+         CORRECT_VALUE, error taxonomy, GET /cases/{id}/care-plan, GET /cases/{id}/audit; POST /translate
+         and the SMS mock removed). A bearer-key reviewer login was built, then reverted at the team's
+         request: reviewer access stays on the X-Carelynx-Role header with reviewer_id in the body.
+      2. Member 2: services/reviews.py + services/care_plan.py, audit in the same transaction, upload
+         limit 10 MB enforced early, FAILED-state handling instead of stuck PROCESSING, Dockerfiles +
+         compose verified on Postgres 16.
+      3. Member 3: general rule-based extractor (page-accurate verbatim quotes), honest fallback
+         provenance, conflict grouping by (type, subject), HIGH severity for high-risk fields, narrower
+         safety policy, computed confidence, OCR never auto-verified, real evaluation script, honest
+         AMD benchmark, translate_texts() with masking + post-verification for en/hi/gu/mr/ta/te
+         (Google v2 -> LLM -> free Google -> MyMemory), VERIFIED-only.
+      4. Member 1: a full redesign was built, then reverted at the team's request; the original UI is
+         kept, rewired to contract v2 (care-plan translation, valid decisions, required rationale) with
+         translated status badges and no invented dose.
+      5. Files removed during the audit (ryzen-ai.py, benchmark_inference.py, infra/amd/docker-compose.yml,
+         qa_probe.py, qa_test_suite.py, test_translator.py, scripts/evaluate.py, scripts/setup_mock_demo.py)
+         were restored at the team's request.
+      6. Browser-verified follow-ups (Chrome, all 6 languages): Read Aloud now sets the BCP-47 language,
+         picks a matching voice (or says none is installed) and translates its intro; fixed an effect loop
+         where `/?action=demo` re-uploaded the sample endlessly. Free translation endpoints were
+         rate-limited during testing; the team chose a Google Cloud Translation API key (GOOGLE_TRANSLATE_API_KEY).
+      7. Fixed the restored apps/api/scripts/evaluate.py with the minimal change: the non-existent
+         create_document/process_document calls now use upload_document + pipeline.run_document. Behaviour
+         is otherwise unchanged (reads tests/data/, "dummy pass" when empty, uses the configured DB).
+    - Files created / modified: see `git diff --stat` on branch fix/audit-pending-work.
+    - Verification & testing performed:
+      - apps/api: pytest 121 passed (SQLite; also 121 passed on Postgres 16 container).
+      - scripts/evaluate_clinical.py: A/B/C PASS, precision/recall 100%, unsupported claims 0%, conflicts 2/2.
+      - Live API: hi/gu/mr/ta/te care plans translated with drug names/doses intact; SELECT_SOURCE
+        resolved and audited.
+      - apps/web: tsc clean, next build OK. Pre-existing eslint errors in the original UI remain (CLX-021).
+    - Alignment check:
+      Confirmed with docs/PRD.md and docs/SAFETY.md; no diagnosis/dose advice; no fabricated data.
+
+commit 85fb9ca65a1ada2c5279861579105d40ffb8bf5d
+Author: Gemini 3.1 Pro via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-12 17:36:00 +0530
+
+    fix(storage): implement missing app.storage module, update .gitignore, and install dev dependencies
+
+    - Context / Problem addressed:
+      1. FastAPI server failed to start with `ModuleNotFoundError: No module named 'app.storage'`.
+      2. The `app.storage` package was absent because `.gitignore` contained `storage/`, which
+         accidentally excluded `apps/api/app/storage/` from git tracking.
+      3. Running `run.py dev` or `run.py test` failed because dev requirements (pytest, etc.)
+         were missing in `.venv`.
+    - Architectural decisions & changes made:
+      1. Updated `.gitignore`:
+         - Replaced generic `storage/` with `/storage/` and `apps/api/storage/`.
+         - Explicitly whitelisted `!apps/api/app/storage/` to prevent future git exclusion.
+      2. Implemented `apps/api/app/storage/base.py`:
+         - Defined `StorageBackend` Protocol specifying `put`, `get`, `delete`, and `exists` methods.
+      3. Implemented `apps/api/app/storage/local.py`:
+         - Defined `LocalPrivateStorage` providing path-traversal-safe file persistence with
+           isolated UUID keys and `get_storage` FastAPI dependency.
+      4. Implemented `apps/api/app/storage/__init__.py`:
+         - Exported `StorageBackend`, `LocalPrivateStorage`, and `get_storage`.
+      5. Installed `requirements-dev.txt` in `.venv`.
+    - Files created / modified:
+      - .gitignore (modified)
+      - apps/api/app/storage/__init__.py (created)
+      - apps/api/app/storage/base.py (created)
+      - apps/api/app/storage/local.py (created)
+      - docs/AI_LOG.md (modified)
+    - Verification & testing performed:
+      - Executed `python run.py test`: all 45 backend unit & integration tests passed cleanly (100%).
+      - Executed `apps/api/scripts/evaluate_clinical.py`: all clinical benchmarks passed (18 facts, 17 evidence matches, 2 conflicts detected, 3/3 safety intercepts).
+    - Alignment check:
+      - Confirmed compliance with docs/PRD.md, docs/ARCHITECTURE.md, and docs/SAFETY.md.
+
 commit c2f91a4b6e8d0e7a1b3c5d7e9f0a2b4c6d8e0f1a
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-12 14:23:00 +0530

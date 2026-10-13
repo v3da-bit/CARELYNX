@@ -7,11 +7,19 @@ import logging
 from dataclasses import dataclass
 
 from pypdf import PdfReader
-from pypdf.errors import PdfReadError
 from sqlalchemy.orm import Session
 
-from app.models import Document, DocumentPage
-from app.models.enums import ActorType, AuditEvent, DocumentKind, ExtractionMethod, ProcessingStatus
+from app.core.errors import ErrorCode
+from app.models import Document, DocumentPage, ReviewCase
+from app.models.enums import (
+    ActorType,
+    AuditEvent,
+    DocumentKind,
+    ExtractionMethod,
+    ProcessingStatus,
+    ReviewReason,
+    ReviewSeverity,
+)
 from app.safety.text_quality import FLAG_OCR_UNAVAILABLE, page_quality
 from app.services import audit
 from app.services.ocr import OcrEngine
@@ -63,6 +71,38 @@ def classify(text: str) -> DocumentKind:
     return DocumentKind.UNKNOWN
 
 
+def mark_failed(db: Session, doc: Document, code: ErrorCode) -> None:
+    """Terminal failure: document FAILED with `error_code` + a PROCESSING_FAILED review. Caller commits."""
+    doc.processing_status = ProcessingStatus.FAILED
+    doc.error_code = code.value
+    audit.record(
+        db,
+        AuditEvent.DOCUMENT_PROCESSING_FAILED,
+        case_id=doc.case_id,
+        document_id=doc.id,
+        error_code=code.value,
+    )
+    review = ReviewCase(
+        case_id=doc.case_id,
+        document_id=doc.id,
+        reason=f"Document could not be processed ({code.value}). No information was extracted from it.",
+        reason_code=ReviewReason.PROCESSING_FAILED,
+        severity=ReviewSeverity.MEDIUM,
+        fact_ids=[],
+        recommended_action="Check the original file; ask the patient for a readable copy if needed.",
+    )
+    db.add(review)
+    db.flush()
+    audit.record(
+        db,
+        AuditEvent.REVIEW_CREATED,
+        case_id=doc.case_id,
+        document_id=doc.id,
+        review_id=review.id,
+        review_reason=ReviewReason.PROCESSING_FAILED.value,
+    )
+
+
 def process_document(db: Session, storage: StorageBackend, doc: Document, ocr: OcrEngine) -> Document:
     doc.processing_status = ProcessingStatus.PROCESSING
     doc.error_code = None
@@ -75,14 +115,10 @@ def process_document(db: Session, storage: StorageBackend, doc: Document, ocr: O
             extracted = _extract_pdf(data)
         else:
             extracted = _extract_image(data, ocr)
-    except (PdfReadError, ValueError, OSError) as exc:
+    except Exception as exc:  # noqa: BLE001 — any parse/OCR crash ends in FAILED, never stuck in PROCESSING
         logger.warning("Processing failed document_id=%s err=%s", doc.id, type(exc).__name__)
-        doc.processing_status = ProcessingStatus.FAILED
-        doc.error_code = "PDF_PARSE_ERROR" if isinstance(exc, PdfReadError) else "READ_ERROR"
-        audit.record(
-            db, AuditEvent.DOCUMENT_PROCESSING_FAILED, case_id=doc.case_id, document_id=doc.id,
-            error_code=doc.error_code,
-        )
+        is_pdf = doc.mime_type == "application/pdf"
+        mark_failed(db, doc, ErrorCode.PARSING_ERROR if is_pdf else ErrorCode.OCR_ERROR)
         db.commit()
         return doc
 

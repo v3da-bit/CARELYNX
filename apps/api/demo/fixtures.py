@@ -1,8 +1,10 @@
 """Synthetic, de-identified demo documents for CARELYNX.
 
-EVERY document here is fictional. No real patient data. Used by tests, the evaluation benchmark and demo seeding.
+EVERY document here is fictional. No real patient data. Used by tests, the evaluation benchmark and demo
+seeding.
 
-Each document is a list of pages; each page is a list of text lines. `expected` describes the ground truth used
+Each document is a list of pages; each page is a list of text lines. `expected` describes the ground truth
+used
 by the evaluation benchmark (tests/evaluation).
 
 Run `python -m demo.fixtures --out ../../tests/fixtures/generated` to write PDFs.

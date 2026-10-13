@@ -12,7 +12,8 @@ from enum import StrEnum
 
 from fastapi import Header, Request, Response
 
-from app.core.errors import AppError, ErrorCode
+from app.core.config import get_settings
+from app.core.errors import AppError, ErrorCode, error_response
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -23,12 +24,31 @@ SECURITY_HEADERS = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 }
 
+# Allowance for multipart boundaries/headers on top of the file-size limit.
+MULTIPART_OVERHEAD_BYTES = 64 * 1024
+
+
+def _declared_body_too_large(request: Request) -> bool:
+    """Reject before Starlette spools the body. Chunked bodies (no Content-Length) fall through to the
+    bounded read in the upload endpoint."""
+    try:
+        length = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        return False
+    return length > get_settings().max_upload_bytes + MULTIPART_OVERHEAD_BYTES
+
 
 async def security_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     request.state.request_id = str(uuid.uuid4())
-    response = await call_next(request)
+    if _declared_body_too_large(request):
+        limit_mb = get_settings().max_upload_mb
+        response: Response = error_response(
+            request, ErrorCode.UPLOAD_ERROR, f"File exceeds maximum upload size of {limit_mb}MB.", 400
+        )
+    else:
+        response = await call_next(request)
     for k, v in SECURITY_HEADERS.items():
         response.headers.setdefault(k, v)
     response.headers["X-Request-ID"] = request.state.request_id

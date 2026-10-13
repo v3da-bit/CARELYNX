@@ -12,7 +12,8 @@ import pytest
 # Configure env BEFORE importing app modules.
 _TMP = Path(tempfile.mkdtemp(prefix="carelynx-test-"))
 os.environ["ENVIRONMENT"] = "test"
-os.environ["DATABASE_URL"] = f"sqlite:///{_TMP / 'test.db'}"
+# TEST_DATABASE_URL runs the suite against Postgres (tables are dropped/recreated per test).
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{_TMP / 'test.db'}"
 os.environ["STORAGE_LOCAL_DIR"] = str(_TMP / "storage")
 os.environ["INFERENCE_PROVIDER"] = "rule_based"
 

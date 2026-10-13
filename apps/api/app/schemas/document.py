@@ -30,6 +30,7 @@ class PageSummary(ORM):
 
 
 class PageDetail(PageSummary):
+    id: uuid.UUID
     document_id: uuid.UUID
     text: str | None
 
@@ -52,11 +53,13 @@ class DocumentOut(ORM):
 class ProcessResponse(BaseModel):
     document_id: uuid.UUID
     status: ProcessingStatus
+    error_code: str | None = None
 
 
 class CaseCreated(ORM):
     id: uuid.UUID
     status: CaseStatus
+    created_at: datetime
 
 
 class CaseCounts(BaseModel):

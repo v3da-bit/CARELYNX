@@ -110,6 +110,11 @@ class Evidence(UUIDPk, Base):
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     fact: Mapped[Fact] = relationship(back_populates="evidence")
+    document: Mapped[Document] = relationship(lazy="joined")
+
+    @property
+    def document_filename(self) -> str:
+        return self.document.filename
 
 
 class Conflict(UUIDPk, Base):

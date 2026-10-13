@@ -11,11 +11,16 @@ from sqlalchemy import select
 from app.db.session import SessionLocal
 from app.models.entities import Case, Document, Fact
 from app.models.enums import ProcessingStatus
-from app.services.processing import process_document
-from app.services.documents import create_case, create_document
+from app.core.config import get_settings
+from app.services.documents import create_case, upload_document
+from app.services.ocr import get_ocr_engine
+from app.services.pipeline import run_document
+from app.storage.local import get_storage
 
+# pyrefly: ignore [unannotated-return]
 async def run_evaluation():
     db = SessionLocal()
+    storage = get_storage()
     print("CARELYNX Evaluation Benchmark")
     print("============================")
     
@@ -45,17 +50,17 @@ async def run_evaluation():
         with open(file_path, "rb") as f:
             file_bytes = f.read()
             
-        doc = create_document(db, case.id, os.path.basename(file_path), "application/pdf", len(file_bytes))
+        doc = upload_document(
+            db, storage, data=file_bytes, filename=os.path.basename(file_path),
+            max_bytes=get_settings().max_upload_bytes, case_id=case.id,
+        )
         db.commit()
         
-        # Save mock file (in a real scenario we use proper storage, here we just pass bytes or write to temp)
-        # Assuming process_document takes doc and db
         start_time = time.time()
         
-        # Mocking process_document call structure
-        # process_document runs in background normally, but we run it directly here
+        # run_document is what POST /documents/{id}/process runs; called directly here
         try:
-            await process_document(db, doc, file_bytes)
+            await run_document(db, storage, doc, ocr=get_ocr_engine())
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
             continue

@@ -48,10 +48,7 @@ class GeminiProvider(InferenceProvider):
             self.model = "gemini-1.5-flash"
         self.timeout = float(getattr(settings, "inference_timeout_s", 60.0) or 60.0)
         self.hardware_label = getattr(settings, "inference_hardware_label", "gemini-cloud")
-
-    @property
-    def info(self) -> ProviderInfo:
-        return ProviderInfo(
+        self.info = ProviderInfo(
             name="gemini",
             model=self.model,
             hardware_label=self.hardware_label,

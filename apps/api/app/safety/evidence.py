@@ -19,7 +19,9 @@ class EvidenceMatch:
     page_number: int | None = None
 
 
-def match_verbatim(page_text: str | None, snippet: str | None, *, page_number: int | None = None) -> EvidenceMatch:
+def match_verbatim(
+    page_text: str | None, snippet: str | None, *, page_number: int | None = None
+) -> EvidenceMatch:
     """Return whether `snippet` appears verbatim in `page_text`.
 
     Matching is exact (no LLM paraphrase, no fuzzy edit distance). Leading/trailing

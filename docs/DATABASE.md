@@ -1,6 +1,6 @@
 # CARELYNX — Database Specification
 
-> **Document Version:** 1.1.0  
+> **Document Version:** 1.2.0  
 > **Source of Truth:** `/docs/DATABASE.md`  
 > **Target RDBMS:** PostgreSQL (Production) / SQLite (Local Dev & Unit Tests)  
 > **ORM Layer:** SQLAlchemy 2.0 + Alembic Migrations  
@@ -13,6 +13,12 @@
 2. **Timestamps:** All timestamps are timezone-aware UTC (`TIMESTAMPTZ` in Postgres, ISO 8601 strings in SQLite).
 3. **JSON Storage:** Structured clinical payloads, conflict trees, and audit metadata are stored in `JSONB` on Postgres and standard `JSON` on SQLite.
 4. **Referential Integrity:** Foreign keys enforce `ON DELETE CASCADE` on case-owned child records (documents, facts, review cases).
+5. **Enums:** Stored as `VARCHAR(32)` holding the enum *value* (no native DB enum, no CHECK constraint). The allowed
+   values are enforced by the application (`app/models/enums.py`), so adding an enum value needs no migration.
+6. **Defaults:** The `DEFAULT` clauses below document the values the ORM sets on insert. Migration `0001` creates no
+   server-side defaults, so raw SQL inserts must supply every `NOT NULL` column.
+7. **Parity:** `alembic upgrade head && alembic check` reports no drift between `app/models/entities.py` and the
+   migrations (verified on SQLite and PostgreSQL 16).
 
 ---
 
@@ -24,7 +30,7 @@ Stores patient profiles and preferred communication language.
 ```sql
 CREATE TABLE patients (
     id UUID PRIMARY KEY,
-    preferred_language VARCHAR(10) NOT NULL DEFAULT 'en',
+    preferred_language VARCHAR(32) NOT NULL DEFAULT 'en',  -- en | hi | gu | mr | ta | te
     external_reference TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
@@ -39,8 +45,8 @@ Encounter container grouping all documents, extracted facts, and review items fo
 ```sql
 CREATE TABLE cases (
     id UUID PRIMARY KEY,
-    patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
-    status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+    patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,  -- a patient row is created with every case
+    status VARCHAR(32) NOT NULL DEFAULT 'OPEN',  -- OPEN | PROCESSING | READY | NEEDS_REVIEW
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
@@ -63,8 +69,8 @@ CREATE TABLE documents (
     processing_status VARCHAR(32) NOT NULL DEFAULT 'UPLOADED',
     size_bytes INTEGER NOT NULL DEFAULT 0,
     sha256 VARCHAR(64) NOT NULL DEFAULT '',
-    document_kind VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
-    error_code VARCHAR(64) NULL,
+    document_kind VARCHAR(32) NOT NULL DEFAULT 'unknown',  -- discharge_summary | prescription | follow_up | unknown
+    error_code VARCHAR(64) NULL,  -- OCR_ERROR | PARSING_ERROR | MODEL_ERROR | INTERNAL_ERROR when FAILED
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
@@ -83,7 +89,7 @@ CREATE TABLE document_pages (
     page_number INTEGER NOT NULL,
     text TEXT NULL,
     ocr_confidence NUMERIC(5,4) NULL,
-    extraction_method VARCHAR(32) NOT NULL,
+    extraction_method VARCHAR(32) NOT NULL,  -- pdf_text | ocr | ocr_unavailable | failed
     text_quality NUMERIC(5,4) NULL,
     quality_flags JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL,
@@ -101,7 +107,7 @@ Structured candidate facts extracted from clinical documentation.
 CREATE TABLE facts (
     id UUID PRIMARY KEY,
     case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
-    fact_type VARCHAR(100) NOT NULL,
+    fact_type VARCHAR(32) NOT NULL,
     value JSONB NOT NULL,
     status VARCHAR(32) NOT NULL,
     confidence NUMERIC(5,4) NULL,
@@ -114,11 +120,14 @@ CREATE TABLE facts (
 CREATE INDEX ix_facts_case_id ON facts(case_id);
 ```
 
-Allowed `fact_type`:
-- `follow_up_date`
-- `instruction`
-- `medication`
-- `warning`
+Allowed `fact_type` (the `value` shape is the matching Pydantic model in `app/ai/schemas.py`):
+- `follow_up` — `FollowUpValue` (`date`, `time`, `department`, `clinician`, `raw_text`)
+- `medication` — `MedicationValue` (`name`, `strength`, `quantity`, `frequency`, `duration`, `timing`)
+- `instruction`, `warning_sign`, `documented_condition` — `TextValue` (`text`)
+- `allergy` — `AllergyValue` (`substance`, `no_known_allergies`)
+- `encounter_date` — `EncounterDateValue` (`kind`: admission | discharge, `date`, `raw_text`)
+
+`extracted_by` is truthful provenance: provider name, or `human_review` after a `CORRECT_VALUE` decision.
 
 Allowed `status`:
 - `VERIFIED`
@@ -158,7 +167,7 @@ Records contradictory values detected across documents belonging to the same cas
 CREATE TABLE conflicts (
     id UUID PRIMARY KEY,
     case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
-    fact_type VARCHAR(100) NOT NULL,
+    fact_type VARCHAR(32) NOT NULL,
     conflict_data JSONB NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
     created_at TIMESTAMPTZ NOT NULL,
@@ -181,13 +190,13 @@ CREATE TABLE review_cases (
     severity VARCHAR(32) NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
     assigned_to UUID NULL,
-    resolution TEXT NULL,
+    resolution TEXT NULL,  -- reviewer's resolution_notes (required, 1-2000 chars)
     fact_ids JSONB NOT NULL DEFAULT '[]',
     conflict_id UUID REFERENCES conflicts(id) ON DELETE SET NULL,
     document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
     recommended_action TEXT NOT NULL DEFAULT '',
-    decision VARCHAR(32) NULL,
-    resolved_by VARCHAR(100) NULL,
+    decision VARCHAR(32) NULL,  -- APPROVE | REJECT | SELECT_SOURCE | CORRECT_VALUE
+    resolved_by VARCHAR(100) NULL,  -- reviewer_id from the resolve request
     created_at TIMESTAMPTZ NOT NULL,
     resolved_at TIMESTAMPTZ NULL
 );
@@ -206,7 +215,7 @@ CREATE TABLE audit_logs (
     actor_type VARCHAR(32) NOT NULL,
     actor_id UUID NULL,
     event_type VARCHAR(100) NOT NULL,
-    metadata JSONB NOT NULL DEFAULT '{}',
+    metadata JSONB NOT NULL DEFAULT '{}',  -- ids/codes/counts only; never document text (app/services/audit.py)
     created_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX ix_audit_logs_case_id ON audit_logs(case_id);

@@ -11,7 +11,7 @@
 CARELYNX is engineered by a close-knit group of **3 developers** who pair-program with AI assistants to build a production-grade healthcare document navigation platform. 
 
 Our team operates under a shared code-of-conduct:
-1. **Single Source of Truth:** All technical and product decisions adhere strictly to `/docs` (derived from `/docs copy`).
+1. **Single Source of Truth:** All technical and product decisions adhere strictly to `/docs`.
 2. **Specialized Ownership:** Every member has designated ownership, with dedicated focus on their respective domain.
 3. **AI as a Disciplined Multiplier:** AI assistants are used extensively, but they must follow strict project guidelines, avoid conceptual drift, and record every change in `docs/AI_LOG.md`.
 

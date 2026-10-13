@@ -126,7 +126,7 @@ You are pairing with a human team of 3 developers:
    - Do NOT let the LLM declare its own certainty or status. Status is computed deterministically in application code (`app/safety/`).
    - Allowed statuses: `VERIFIED`, `NEEDS_REVIEW`, `HUMAN_REQUIRED`, `CONFLICT_DETECTED`, `REJECTED`.
 4. **Multilingual Invariant:**
-   - Translation (`en`, `hi`, `gu`) must never alter drug names, dosages, dates, or dilute uncertainty indicators (e.g. "needs review" cannot become "verified").
+   - Translation (`en`, `hi`, `gu`, `mr`, `ta`, `te`) must never alter drug names, dosages, dates, or dilute uncertainty indicators (e.g. "needs review" cannot become "verified").
 5. **AMD Inference Path:**
    - Local development uses `rule_based` provider by default.
    - Production / GPU testing uses `openai_compatible` provider pointing to an AMD ROCm-hosted vLLM endpoint.

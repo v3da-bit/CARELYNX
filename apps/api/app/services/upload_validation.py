@@ -31,18 +31,15 @@ def sniff_file_kind(data: bytes) -> FileKind:
     for sig, kind in _SIGNATURES:
         if data.startswith(sig):
             return kind
-    raise AppError(
-        ErrorCode.UNSUPPORTED_FILE_TYPE, "Only PDF, PNG and JPEG documents are supported.", status_code=415
-    )
+    raise AppError(ErrorCode.UPLOAD_ERROR, "Only PDF, PNG and JPEG documents are supported.", 400)
 
 
 def check_size(size: int, max_bytes: int) -> None:
     if size == 0:
-        raise AppError(ErrorCode.VALIDATION_ERROR, "The uploaded file is empty.", 400)
+        raise AppError(ErrorCode.UPLOAD_ERROR, "The uploaded file is empty.", 400)
     if size > max_bytes:
-        raise AppError(
-            ErrorCode.FILE_TOO_LARGE, f"File exceeds the {max_bytes // (1024 * 1024)} MB limit.", 413
-        )
+        limit_mb = max_bytes // (1024 * 1024)
+        raise AppError(ErrorCode.UPLOAD_ERROR, f"File exceeds maximum upload size of {limit_mb}MB.", 400)
 
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._ \-()\u0900-\u097F\u0A80-\u0AFF]")

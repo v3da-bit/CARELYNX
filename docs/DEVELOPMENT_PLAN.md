@@ -2,7 +2,7 @@
 
 > **Document Version:** 1.1.0  
 > **Source of Truth:** `/docs/DEVELOPMENT_PLAN.md`  
-> **Status:** MVP Core Complete (Phases 0–10 Implemented and Operational)  
+> **Status:** MVP core operational; AMD hardware run pending (CLX-020). Audit remediation completed 2026-10-12.  
 
 ---
 
@@ -85,7 +85,7 @@ Bootstrap   Upload      Processing  Extraction  Evidence    Care Plan   Multilin
 - **Deliverables:**
   - `OpenAICompatibleProvider` connecting to local vLLM instances hosted on AMD hardware.
   - Deployment configurations under `infra/amd/`.
-- **Status:** **Completed**
+- **Status:** **Integrated; not yet executed on AMD hardware** (benchmark so far measured only the CPU baseline — see CLX-020)
 
 ### Phase 9: Evaluation & Benchmarking ✅
 - **Goal:** Measure extraction accuracy, evidence precision, and conflict detection recall.
@@ -96,7 +96,7 @@ Bootstrap   Upload      Processing  Extraction  Evidence    Care Plan   Multilin
 ### Phase 10: Demo Hardening & Team Synchronization ✅
 - **Goal:** Ensure complete team alignment across the 3 developers, synchronize documentation, and prepare the live hackathon walkthrough.
 - **Deliverables:**
-  - Fully synchronized `/docs` directory matching `/docs copy`.
+  - Single `/docs` specification set (the `/docs copy` drafts were later merged into PRD, SRS and ARCHITECTURE).
   - Comprehensive `TEAM.md`, `AI_INSTRUCTIONS.md`, and `AI_LOG.md`.
   - Robust root `README.md`.
 - **Status:** **Completed**
