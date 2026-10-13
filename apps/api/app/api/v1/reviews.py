@@ -18,6 +18,7 @@ router = APIRouter(prefix="/reviews", tags=["reviews"], dependencies=[Depends(re
 
 
 @router.get("", response_model=list[ReviewCaseResponse])
+@router.get("/open", response_model=list[ReviewCaseResponse])
 def list_reviews(
     status: ReviewStatus = Query(default=ReviewStatus.OPEN), db: Session = Depends(get_db)
 ) -> list[ReviewCase]:
