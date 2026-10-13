@@ -72,11 +72,7 @@ function HomeContent() {
         setIsTranslating(true);
         try {
           const res = await translateCase(caseId, language);
-          const newMap: Record<string, Record<string, unknown>> = {};
-          res.facts.forEach(t => {
-            newMap[t.id] = t.translated_value;
-          });
-          setTranslations(newMap);
+          setTranslations(res);
         } catch (err) {
           console.error("Auto-translation on upload failed:", err);
         } finally {

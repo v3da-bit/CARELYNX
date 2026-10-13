@@ -138,7 +138,12 @@ export interface CarePlan {
 export const getCarePlan = (caseId: string, lang: string) =>
   api<CarePlan>(`/cases/${caseId}/care-plan?lang=${lang}`);
 
-export type TranslatedText = { title: string; subtitle: string | null; date: string | null };
+export type TranslatedText = { 
+  title?: string; 
+  subtitle?: string | null; 
+  date?: string | null; 
+  [key: string]: any;
+};
 
 /** Server-translated text for VERIFIED facts only (others stay in English until reviewed). */
 export const translateCase = async (caseId: string, lang: string): Promise<Record<string, TranslatedText>> => {

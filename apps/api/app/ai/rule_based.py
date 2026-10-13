@@ -185,7 +185,7 @@ def _fact(
     value: dict[str, Any],
     legible: bool | None = None,
 ) -> dict[str, Any]:
-    if "simplified_meaning" not in value:
+    if not value.get("simplified_meaning"):
         if fact_type == "medication":
             name = value.get("name") or "Medication"
             strength = value.get("strength")
@@ -206,6 +206,14 @@ def _fact(
         elif fact_type == "encounter_date":
             kind = value.get("kind") or "encounter"
             value["simplified_meaning"] = f"Official hospital {kind} date."
+        elif fact_type == "allergy":
+            sub = value.get("substance") or "substance"
+            if value.get("no_known_allergies"):
+                value["simplified_meaning"] = "No known drug allergies reported."
+            else:
+                value["simplified_meaning"] = f"Known allergy alert: {sub}."
+        else:
+            value["simplified_meaning"] = f"Clinical record item: {quote.strip()}."
     return {
         "fact_type": fact_type,
         "source": {"page_number": page, "quote": quote, "section": section[:120] if section else None},

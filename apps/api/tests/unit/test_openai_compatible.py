@@ -42,7 +42,9 @@ def _provider(content: str | None = None, status: int = 200, exc: Exception | No
             raise exc
         return httpx.Response(status, json={"choices": [{"message": {"content": content}}]})
 
-    return OpenAICompatibleProvider(transport=httpx.MockTransport(handler)), seen
+    prov = OpenAICompatibleProvider(transport=httpx.MockTransport(handler))
+    prov.api_base = "http://localhost:8080/v1"
+    return prov, seen
 
 
 def test_success_returns_validated_facts_with_true_provenance() -> None:
