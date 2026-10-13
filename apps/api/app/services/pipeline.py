@@ -48,11 +48,12 @@ def purge_document_facts(db: Session, doc: Document) -> None:
 def _claim(db: Session, doc: Document) -> ProcessingStatus:
     """Atomically move UPLOADED/FAILED → PROCESSING; concurrent or repeated calls get 409."""
     previous = doc.processing_status
-    claimed = db.execute(
+    res = db.execute(
         update(Document)
         .where(Document.id == doc.id, Document.processing_status.in_(PROCESSABLE))
         .values(processing_status=ProcessingStatus.PROCESSING)
-    ).rowcount  # type: ignore[attr-defined]  # CursorResult for UPDATE
+    )
+    claimed = getattr(res, "rowcount", 0)
     if claimed != 1:
         db.rollback()
         raise AppError(
