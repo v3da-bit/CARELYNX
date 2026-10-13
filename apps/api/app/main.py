@@ -11,15 +11,20 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.security import security_middleware
+from app.db.base import Base
+from app.db.session import engine
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    # Initialize database tables
+    Base.metadata.create_all(bind=engine)
     app = FastAPI(
         title="CARELYNX API",
         version="0.1.0",
+        debug=settings.debug,
         description=(
             "Evidence-linked discharge instruction processing. "
             "Information navigation only — not a diagnosis or treatment system."
@@ -29,9 +34,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        allow_credentials=False,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Carelynx-Role"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Carelynx-Role", "Authorization"],
         expose_headers=["X-Request-ID"],
     )
     register_error_handlers(app)

@@ -19,11 +19,23 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, init: RequestInit & { role?: Role } = {}): Promise<T> {
   const { role = "patient", headers, ...rest } = init;
+  let token: string | null = null;
+  if (typeof window !== "undefined") {
+    try {
+      token = localStorage.getItem("carelynx_auth_token");
+    } catch {
+      /* ignore */
+    }
+  }
+  const authHeaders: Record<string, string> = {};
+  if (token) {
+    authHeaders["Authorization"] = `Bearer ${token}`;
+  }
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...rest,
-      headers: { "X-Carelynx-Role": role, ...(headers ?? {}) },
+      headers: { "X-Carelynx-Role": role, ...authHeaders, ...(headers ?? {}) },
       cache: "no-store",
     });
   } catch {
@@ -75,12 +87,22 @@ export const uploadDocument = async (caseId: string, file: File): Promise<Docume
   formData.append("file", file);
   formData.append("case_id", caseId);
   
+  const headers: Record<string, string> = { "X-Carelynx-Role": "patient" };
+  if (typeof window !== "undefined") {
+    try {
+      const token = localStorage.getItem("carelynx_auth_token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    } catch {
+      // ignore
+    }
+  }
+
   // Note: Cannot use our 'api' helper easily here because of FormData content-type handling.
   // fetch will automatically set the correct multipart/form-data boundary.
   const res = await fetch(`${API_BASE}/documents`, {
     method: "POST",
     body: formData,
-    headers: { "X-Carelynx-Role": "patient" },
+    headers,
   });
   if (!res.ok) {
     let msg = `Upload failed (${res.status})`;
@@ -108,6 +130,7 @@ export interface CaseOut {
   status: string;
   documents: DocumentResponse[];
   counts: Record<string, unknown>;
+  created_at?: string;
 }
 
 export const getCase = (caseId: string) => api<CaseOut>(`/cases/${caseId}`);
@@ -198,3 +221,50 @@ export const resolveReview = (id: string, req: ResolveReviewRequest) =>
     body: JSON.stringify(req),
     headers: { "Content-Type": "application/json", "X-Carelynx-Role": "reviewer" }
   });
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserProfile;
+}
+
+export const registerUser = async (email: string, password: string, fullName?: string): Promise<AuthResponse> => {
+  const res = await api<AuthResponse>("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, full_name: fullName }),
+  });
+  if (typeof window !== "undefined") {
+    localStorage.setItem("carelynx_auth_token", res.token);
+  }
+  return res;
+};
+
+export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
+  const res = await api<AuthResponse>("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (typeof window !== "undefined") {
+    localStorage.setItem("carelynx_auth_token", res.token);
+  }
+  return res;
+};
+
+export const logoutUser = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("carelynx_auth_token");
+  }
+};
+
+export const getMe = () => api<UserProfile>("/auth/me");
+export const getUserCases = () => api<CaseOut[]>("/cases");
+

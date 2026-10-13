@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { HeartHandshake, AlertTriangle, Sparkles, Menu, X, Stethoscope, FileText, Pill, Activity } from "lucide-react";
+import { HeartHandshake, AlertTriangle, Sparkles, Menu, X, Stethoscope, FileText, Pill, Activity, Clock } from "lucide-react";
 import { getOpenReviews } from "@/lib/api";
 
 export default function Navbar() {
@@ -108,6 +108,15 @@ export default function Navbar() {
 
         {/* Right Desktop Action Pills */}
         <div className="hidden sm:flex items-center gap-2 sm:gap-3 text-sm">
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("carelynx:history"))}
+            className="px-3.5 py-2 rounded-full border border-slate-300 hover:border-emerald-400 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
+            id="nav-my-history"
+            title="Access private patient case history"
+          >
+            <Clock className="w-4 h-4 text-emerald-700" />
+            <span>My History</span>
+          </button>
           <Link 
             href="/review" 
             className="px-3.5 sm:px-4 py-2 rounded-full bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm shadow-rose-500/20 transition-all"

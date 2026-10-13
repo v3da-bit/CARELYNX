@@ -18,10 +18,13 @@ from app.core.errors import AppError, ErrorCode, error_response
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
-    "Cache-Control": "no-store",
-    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-site",
 }
 
 # Allowance for multipart boundaries/headers on top of the file-size limit.

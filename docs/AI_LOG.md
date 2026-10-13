@@ -13,6 +13,64 @@
 ```text
 commit (uncommitted — branch Meet)
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-13 12:33:00 +0530
+
+    feat(security): implement tenant isolation, OWASP Top 10 hardening, prompt injection defense, and RLS
+
+    - Context / Problem addressed:
+      1. User requested converting CARELYNX into a user-isolated platform so every user
+         has their own distinct medical history with zero data mixing (prevention of IDOR / OWASP A01).
+      2. AppSec Engineer Audit against OWASP Top 10 and infrastructure exploits:
+         - Secure coding: Strict input validation, data sanitization, parameterized SQL queries.
+         - Secrets & Environment: Safe abstraction of keys, .env and secret patterns committed to .gitignore.
+         - Security headers: Content-Security-Policy (CSP), X-Frame-Options, HSTS, X-Content-Type-Options.
+         - Infrastructure & DB: Row-Level Security (RLS) script for PostgreSQL, disabled production debug.
+         - Prompt Injection Defense: LLM input sanitization, adversarial prompt pattern filtering, secret redaction.
+      3. Strict constraint: Do NOT push to remote origin.
+
+    - Architectural decisions & changes made:
+      1. Authentication & Tenant Isolation Engine (Zero External Dependencies):
+         - apps/api/app/core/auth.py: Built cryptographic PBKDF2-HMAC-SHA256 password hasher with
+           16-byte random salt and 120,000 rounds, constant-time compare_digest verification, and
+           HMAC-SHA256 signed bearer/cookie session tokens with expiration.
+         - apps/api/app/models/entities.py: Created User entity and attached user_id foreign key to Case.
+         - apps/api/app/schemas/auth.py: Built Pydantic request/response schemas with email/password validation.
+         - apps/api/app/api/v1/auth.py: Added POST /auth/register, POST /auth/login, GET /auth/me endpoints.
+         - apps/api/app/services/documents.py & apps/api/app/api/v1/cases.py, documents.py, facts.py:
+           Enforced strict tenant ownership on all case queries and mutations. Unauthorized attempts to
+           read, modify, or download documents from another tenant return 403 FORBIDDEN.
+      2. AppSec & Infrastructure Hardening:
+         - .gitignore: Appended .pem, *.key, *.cert, *.pfx, credentials.json to prevent credential leaks.
+         - apps/api/app/core/security.py: Added HSTS (max-age=63072000; includeSubDomains; preload),
+           Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, CSP, and Referrer-Policy headers.
+         - apps/api/app/main.py: Enforced debug=settings.debug and allowed Authorization headers in CORS.
+         - apps/web/next.config.ts: Configured strict security headers (CSP, HSTS, X-Frame-Options DENY,
+           X-Content-Type-Options nosniff, Permissions-Policy) in Next.js web server layer.
+         - apps/api/app/db/rls.sql: Developed comprehensive PostgreSQL Row-Level Security (RLS) script
+           enabling RLS and defining tenant isolation policies across cases, documents, facts, and patients.
+      3. Prompt Injection & Sensitive Data Redaction (OWASP LLM01):
+         - apps/api/app/safety/prompt_guard.py: Implemented heuristic scanner detecting instruction overrides,
+           jailbreaks (DAN/developer mode), ChatML token forgery (<|im_start|>), and secret exfiltration.
+         - Integrated redact_sensitive_data and sanitize_for_prompt into AI orchestration pipelines
+           (apps/api/app/ai/gemini.py and apps/api/app/ai/openai_compatible.py).
+      4. Frontend UI/UX Integration:
+         - apps/web/lib/api.ts: Extended API client to store and send Authorization tokens automatically.
+           Added registerUser, loginUser, logoutUser, getMe, getUserCases helpers.
+         - apps/web/app/components/Navbar.tsx: Added "My History" button with custom event trigger.
+         - apps/web/app/page.tsx: Added isolated authentication modal (Sign In / Register), user session badge,
+           and "My Medical History" drawer displaying tenant-specific clinical records.
+      5. Verification & Testing:
+         - Executed comprehensive Python end-to-end integration script verifying user registration,
+           case creation, tenant isolation, IDOR prevention (403 on foreign case access), and security headers.
+         - Verified prompt injection defense and data redaction with adversarial test cases.
+         - Ran pytest apps/api/tests: 127/127 tests passing (100%).
+         - Ran npm run build in apps/web: Next.js 16.3.8 compiled 10/10 static pages with 0 errors.
+         - Confirmed branch Meet is NOT pushed to remote repository.
+```
+
+```text
+commit (uncommitted — branch Meet)
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-13 11:41:00 +0530
 
     fix(reconcile): resolve merge conflicts from origin/main, fix IDE problems, and verify test parity

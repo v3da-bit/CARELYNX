@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     storage_backend: Literal["local"] = "local"
     storage_local_dir: str = "./var/storage"
     max_upload_mb: int = Field(default=10, ge=1, le=100)
+    auth_secret_key: str = "carelynx-sec-key-778899aabbccddeeff00112233445566"
+    debug: bool = False
 
     # Inference provider: `gemini`, `openai_compat`, or `rule_based`
     # `openai_compat` is the settings key; `openai_compatible` is accepted as a docs alias.

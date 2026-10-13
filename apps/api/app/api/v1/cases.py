@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.auth import get_optional_user
 from app.core.security import require_reviewer
 from app.db.session import get_db
-from app.models import AuditLog, Fact
+from app.models import AuditLog, Fact, User
 from app.models.enums import FactStatus, FactType, Language
 from app.schemas.care_plan import CarePlanResponse
 from app.schemas.document import CaseCreated, CaseOut, DocumentOut
@@ -24,15 +25,43 @@ router = APIRouter(prefix="/cases", tags=["cases"])
 
 
 @router.post("", response_model=CaseCreated, status_code=201)
-def create_case(db: Session = Depends(get_db)) -> CaseCreated:
-    case = doc_service.create_case(db)
+def create_case(
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> CaseCreated:
+    user_id = user.id if user else None
+    case = doc_service.create_case(db, user_id=user_id)
     db.commit()
     return CaseCreated.model_validate(case)
 
 
+@router.get("", response_model=list[CaseOut])
+def list_cases(
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> list[CaseOut]:
+    """Returns cases for the authenticated user, or recent cases for reviewers."""
+    user_id = user.id if user and getattr(user, "role", "patient") not in ("reviewer", "admin") else None
+    cases = doc_service.list_user_cases(db, user_id=user_id)
+    return [
+        CaseOut(
+            id=c.id,
+            status=c.status,
+            created_at=c.created_at,
+            documents=[DocumentOut.model_validate(d) for d in c.documents],
+            counts=care_plan.case_counts(db, c.id),
+        )
+        for c in cases
+    ]
+
+
 @router.get("/{case_id}", response_model=CaseOut)
-def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
-    case = doc_service.get_case(db, case_id)
+def get_case(
+    case_id: uuid.UUID,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> CaseOut:
+    case = doc_service.get_case(db, case_id, user=user)
     return CaseOut(
         id=case.id,
         status=case.status,
@@ -43,21 +72,33 @@ def get_case(case_id: uuid.UUID, db: Session = Depends(get_db)) -> CaseOut:
 
 
 @router.get("/{case_id}/facts", response_model=list[FactWithEvidence])
-def get_case_facts(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[Fact]:
-    doc_service.get_case(db, case_id)
+def get_case_facts(
+    case_id: uuid.UUID,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> list[Fact]:
+    doc_service.get_case(db, case_id, user=user)
     return care_plan.case_facts(db, case_id)
 
 
 @router.get("/{case_id}/care-plan", response_model=CarePlanResponse)
 async def get_care_plan(
-    case_id: uuid.UUID, lang: Language = Query(default=Language.EN), db: Session = Depends(get_db)
+    case_id: uuid.UUID,
+    lang: Language = Query(default=Language.EN),
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
 ) -> CarePlanResponse:
+    doc_service.get_case(db, case_id, user=user)
     return await care_plan.build_care_plan(db, case_id, lang)
 
 
 @router.get("/{case_id}/audit", response_model=list[AuditLogOut], dependencies=[Depends(require_reviewer)])
-def get_case_audit(case_id: uuid.UUID, db: Session = Depends(get_db)) -> list[AuditLog]:
-    doc_service.get_case(db, case_id)
+def get_case_audit(
+    case_id: uuid.UUID,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> list[AuditLog]:
+    doc_service.get_case(db, case_id, user=user)
     return list(
         db.scalars(
             select(AuditLog)

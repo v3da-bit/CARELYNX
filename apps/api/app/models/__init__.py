@@ -8,6 +8,7 @@ from app.models.entities import (
     Fact,
     Patient,
     ReviewCase,
+    User,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "Fact",
     "Patient",
     "ReviewCase",
+    "User",
 ]

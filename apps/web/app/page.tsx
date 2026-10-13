@@ -4,12 +4,14 @@ import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { 
   getHealth, createCase, uploadDocument, processDocument, getCase, getCaseFacts, getFactEvidence, translateCase, API_BASE,
-  type Health, type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedText
+  registerUser, loginUser, logoutUser, getMe, getUserCases,
+  type Health, type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedText, type UserProfile
 } from "@/lib/api";
 import { 
   FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
-  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock
+  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock,
+  User, LogOut, Key, Mail
 } from "lucide-react";
 
 function HomeContent() {
@@ -41,15 +43,96 @@ function HomeContent() {
   const [hasSessionUploadConsent, setHasSessionUploadConsent] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
+  // User Account & History state (Strict Tenant/User Isolation)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [userCases, setUserCases] = useState<CaseOut[]>([]);
+  const [loadingCases, setLoadingCases] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getHealth()
       .then(setHealth)
       .catch((e: Error) => setError(e.message));
+
+    getMe()
+      .then(setCurrentUser)
+      .catch(() => setCurrentUser(null));
   }, []);
 
   const handledActionRef = useRef<string | null>(null);
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      if (authMode === "register") {
+        const res = await registerUser(authEmail, authPassword, authName || undefined);
+        setCurrentUser(res.user);
+      } else {
+        const res = await loginUser(authEmail, authPassword);
+        setCurrentUser(res.user);
+      }
+      setShowAuthModal(false);
+      setAuthPassword("");
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Authentication failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setUserCases([]);
+    setShowHistoryDrawer(false);
+  };
+
+  const handleOpenHistory = async () => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+    setShowHistoryDrawer(true);
+    setLoadingCases(true);
+    try {
+      const cases = await getUserCases();
+      setUserCases(cases);
+    } catch (err) {
+      console.error("Failed to load user cases:", err);
+    } finally {
+      setLoadingCases(false);
+    }
+  };
+
+  const handleSelectHistoryCase = async (c: CaseOut) => {
+    try {
+      setIsProcessing(true);
+      setShowHistoryDrawer(false);
+      const [fullCase, caseFacts] = await Promise.all([getCase(c.id), getCaseFacts(c.id)]);
+      setActiveCase(fullCase);
+      setFacts(caseFacts);
+      setTimeout(() => {
+        const el = document.getElementById("care-plan");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load selected case");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // Common upload pipeline
   const uploadAndProcessFile = useCallback(async (file: File) => {
@@ -168,11 +251,16 @@ function HomeContent() {
       }
     };
 
+    const handleHistoryEvent = () => {
+      handleOpenHistory();
+    };
+
     window.addEventListener("carelynx:upload", handleUploadEvent);
     window.addEventListener("carelynx:home", handleHomeEvent);
     window.addEventListener("carelynx:features", handleFeaturesEvent);
     window.addEventListener("carelynx:careplan", handleCarePlanEvent);
     window.addEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
+    window.addEventListener("carelynx:history", handleHistoryEvent);
 
     // Check URL params — once per action: this effect re-runs on every case update, and re-running
     // "demo" would upload the sample again in a loop.
@@ -187,6 +275,8 @@ function HomeContent() {
       } else {
         setShowUploadConsentModal(true);
       }
+    } else if (action === "history") {
+      handleHistoryEvent();
     } else if (action === "demo") {
       handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
     } else if (action === "prescriptions") {
@@ -205,6 +295,7 @@ function HomeContent() {
       window.removeEventListener("carelynx:features", handleFeaturesEvent);
       window.removeEventListener("carelynx:careplan", handleCarePlanEvent);
       window.removeEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
+      window.removeEventListener("carelynx:history", handleHistoryEvent);
     };
   }, [activeCase, handleLoadSample, hasSessionUploadConsent, searchParams]);
 
@@ -415,6 +506,40 @@ function HomeContent() {
             {/* Left Hero Content */}
             <div className="lg:col-span-7 flex flex-col gap-6">
               <div>
+                {/* User Session Banner (Isolated Medical History) */}
+                <div className="mb-4">
+                  {currentUser ? (
+                    <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Private Patient: <strong>{currentUser.email}</strong></span>
+                      <button 
+                        onClick={handleOpenHistory}
+                        className="ml-1 text-emerald-700 underline font-bold hover:text-emerald-900 cursor-pointer"
+                        id="hero-view-history"
+                      >
+                        My Cases
+                      </button>
+                      <button 
+                        onClick={handleLogout}
+                        className="ml-2 text-slate-400 hover:text-rose-600 cursor-pointer"
+                        title="Sign Out"
+                        aria-label="Sign Out"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowAuthModal(true)}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                      id="hero-signin-badge"
+                    >
+                      <User className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Sign In / Register to isolate & save your private medical records</span>
+                    </button>
+                  )}
+                </div>
+
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15]">
                   A clear, evidence-linked <br className="hidden sm:inline" />
                   <span className="text-brand font-extrabold">discharge companion</span> <br className="hidden sm:inline" />
@@ -1338,6 +1463,225 @@ function HomeContent() {
               >
                 <Check className="w-4 h-4" aria-hidden="true" />
                 <span>Agree & Select Document</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Authentication Modal (OWASP Compliant User Isolation) */}
+      {showAuthModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="auth-modal-title"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-6 sm:p-8 relative">
+            <button
+              onClick={() => setShowAuthModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 id="auth-modal-title" className="text-xl font-black text-slate-900 tracking-tight">
+                  {authMode === "login" ? "Sign In to CARELYNX" : "Create Isolated Account"}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {authMode === "login" 
+                    ? "Access your encrypted private medical history." 
+                    : "Zero data leakage — your medical records remain completely isolated."}
+                </p>
+              </div>
+            </div>
+
+            {authError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              {authMode === "register" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      placeholder="Jane Doe"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="patient@example.com"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                <div className="relative">
+                  <Key className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+                  />
+                </div>
+                {authMode === "register" && (
+                  <p className="text-[10px] text-slate-400 mt-1">Must be at least 8 characters with a letter and a number.</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white shadow-lg shadow-teal-600/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                <span>{authMode === "login" ? "Sign In" : "Create Account"}</span>
+              </button>
+            </form>
+
+            <div className="mt-5 text-center text-xs text-slate-500">
+              {authMode === "login" ? (
+                <span>
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode("register"); setAuthError(null); }}
+                    className="font-bold text-teal-600 hover:underline cursor-pointer"
+                  >
+                    Register here
+                  </button>
+                </span>
+              ) : (
+                <span>
+                  Already registered?{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode("login"); setAuthError(null); }}
+                    className="font-bold text-teal-600 hover:underline cursor-pointer"
+                  >
+                    Sign in
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Medical History Drawer (User-Specific Case Isolation) */}
+      {showHistoryDrawer && (
+        <div 
+          className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col border-l border-slate-100 animate-in slide-in-from-right duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Your Medical History</h3>
+                  <p className="text-xs text-slate-500">{currentUser?.email} (Private)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryDrawer(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+                aria-label="Close history"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {loadingCases ? (
+                <div className="flex flex-col items-center justify-center h-48 text-slate-400 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+                  <span className="text-xs">Loading your secure cases...</span>
+                </div>
+              ) : userCases.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-slate-700">No records found</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                    Any discharge summaries or clinical notes you upload while logged in will be safely preserved here.
+                  </p>
+                </div>
+              ) : (
+                userCases.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => handleSelectHistoryCase(c)}
+                    className="p-4 rounded-2xl border border-slate-100 hover:border-teal-200 bg-slate-50/50 hover:bg-teal-50/20 transition cursor-pointer group flex items-start justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-black text-slate-900 group-hover:text-teal-700 transition">
+                          Case #{c.id.substring(0, 8)}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          c.status === "completed" 
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {c.created_at ? new Date(c.created_at).toLocaleString() : "Recent record"}
+                      </p>
+                      {c.documents && c.documents.length > 0 && (
+                        <p className="text-[11px] text-slate-400 mt-1 truncate max-w-[240px]">
+                          📄 {c.documents[0].filename}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-teal-600 group-hover:translate-x-0.5 transition shrink-0 mt-1" />
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <span className="text-xs text-slate-500">Tenant-isolated storage</span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
               </button>
             </div>
           </div>

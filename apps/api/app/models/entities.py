@@ -29,6 +29,17 @@ from app.models.enums import (
 CONFIDENCE = Numeric(5, 4, asdecimal=False)
 
 
+class User(UUIDPk, Timestamps, Base):
+    __tablename__ = "users"
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    full_name: Mapped[str | None] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(32), default="patient")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    cases: Mapped[list[Case]] = relationship(back_populates="user", order_by="Case.created_at.desc()")
+
+
 class Patient(UUIDPk, Timestamps, Base):
     __tablename__ = "patients"
     preferred_language: Mapped[Language] = mapped_column(enum_col(Language), default=Language.EN)
@@ -38,8 +49,10 @@ class Patient(UUIDPk, Timestamps, Base):
 class Case(UUIDPk, Timestamps, Base):
     __tablename__ = "cases"
     patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("patients.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     status: Mapped[CaseStatus] = mapped_column(enum_col(CaseStatus), default=CaseStatus.OPEN)
 
+    user: Mapped[User | None] = relationship(back_populates="cases")
     documents: Mapped[list[Document]] = relationship(back_populates="case", order_by="Document.created_at")
 
 

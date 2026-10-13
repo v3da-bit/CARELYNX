@@ -9,6 +9,7 @@ import httpx
 from app.ai.provider import InferenceProvider, ProviderInfo, StructuredRequest
 from app.ai.rule_based import RuleBasedProvider
 from app.core.config import get_settings
+from app.safety.prompt_guard import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +62,12 @@ class GeminiProvider(InferenceProvider):
             return await RuleBasedProvider().generate_structured(request)
 
         url = f"{GEMINI_API_BASE}/models/{self.model}:generateContent?key={self.api_key}"
+        safe_user_prompt = sanitize_for_prompt(request.user_prompt)
         payload = {
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": request.user_prompt}],
+                    "parts": [{"text": safe_user_prompt}],
                 }
             ],
             "systemInstruction": {
@@ -111,7 +113,7 @@ class GeminiProvider(InferenceProvider):
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": user_prompt}],
+                    "parts": [{"text": sanitize_for_prompt(user_prompt)}],
                 }
             ],
             "systemInstruction": {

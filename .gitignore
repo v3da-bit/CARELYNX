@@ -3,6 +3,11 @@
 .env.*
 *.env
 *.env.*
+*.pem
+*.key
+*.cert
+*.pfx
+credentials.json
 
 # Python
 __pycache__/

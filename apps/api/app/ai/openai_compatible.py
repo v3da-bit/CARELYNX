@@ -30,6 +30,9 @@ def _strip_fences(content: str) -> str:
     return s.strip()
 
 
+from app.safety.prompt_guard import sanitize_for_prompt
+
+
 class OpenAICompatibleProvider:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         settings = get_settings()
@@ -63,7 +66,7 @@ class OpenAICompatibleProvider:
             {
                 "messages": [
                     {"role": "system", "content": request.system_prompt},
-                    {"role": "user", "content": request.user_prompt},
+                    {"role": "user", "content": sanitize_for_prompt(request.user_prompt)},
                 ],
                 "response_format": {
                     "type": "json_schema",
@@ -85,7 +88,7 @@ class OpenAICompatibleProvider:
             {
                 "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
+                    {"role": "user", "content": sanitize_for_prompt(user_prompt)},
                 ],
                 "temperature": 0.0,
             }
