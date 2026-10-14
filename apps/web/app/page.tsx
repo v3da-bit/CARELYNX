@@ -17,7 +17,7 @@ import {
   FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
   ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock,
-  User, LogOut, Key, Mail, Play, Pause, Square, Volume2, CheckCircle2
+  User, LogOut, Key, Mail, Play, Pause, Square, Volume2, CheckCircle2, Languages
 } from "lucide-react";
 
 export type Lang = "en" | "hi" | "gu" | "mr" | "ta" | "te";
@@ -299,6 +299,10 @@ function HomeContent() {
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const speechQueueRef = useRef<string[]>([]);
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const isSpeechStoppedRef = useRef<boolean>(false);
+  const [mobileTab, setMobileTab] = useState<"all" | "warnings" | "followups" | "meds" | "instructions">("all");
 
   useEffect(() => {
     getHealth()
@@ -322,6 +326,16 @@ function HomeContent() {
           role: "patient",
           created_at: firebaseUser.metadata?.creationTime || new Date().toISOString()
         });
+
+        // Restore single-time consent if this user has already consented
+        if (typeof window !== "undefined") {
+          const hasConsent = localStorage.getItem(`carelynx_consent_accepted_${firebaseUser.uid}`) === "true";
+          if (hasConsent) {
+            setHasSessionUploadConsent(true);
+            setConsentAge(true);
+            setConsentPrivacy(true);
+          }
+        }
       } else {
         getMe()
           .then(setCurrentUser)
@@ -331,6 +345,9 @@ function HomeContent() {
 
     return () => {
       unsubscribe();
+      isSpeechStoppedRef.current = true;
+      speechQueueRef.current = [];
+      currentUtteranceRef.current = null;
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -344,12 +361,14 @@ function HomeContent() {
     setAuthError(null);
     setAuthLoading(true);
     try {
+      let uid = "";
       if (authMode === "register") {
         const fbUser = await registerWithFirebase(authEmail, authPassword, authName || undefined);
         const token = await fbUser.getIdToken();
         if (typeof window !== "undefined") {
           localStorage.setItem("carelynx_auth_token", token);
         }
+        uid = fbUser.uid;
         setCurrentUser({
           id: fbUser.uid,
           email: fbUser.email || authEmail,
@@ -363,6 +382,7 @@ function HomeContent() {
         if (typeof window !== "undefined") {
           localStorage.setItem("carelynx_auth_token", token);
         }
+        uid = fbUser.uid;
         setCurrentUser({
           id: fbUser.uid,
           email: fbUser.email || authEmail,
@@ -371,6 +391,17 @@ function HomeContent() {
           created_at: new Date().toISOString()
         });
       }
+
+      // Check single-time consent for this user
+      if (typeof window !== "undefined" && uid) {
+        const hasConsent = localStorage.getItem(`carelynx_consent_accepted_${uid}`) === "true";
+        if (hasConsent) {
+          setHasSessionUploadConsent(true);
+          setConsentAge(true);
+          setConsentPrivacy(true);
+        }
+      }
+
       setShowAuthModal(false);
       setAuthPassword("");
     } catch (err) {
@@ -396,6 +427,17 @@ function HomeContent() {
         role: "patient",
         created_at: new Date().toISOString()
       });
+
+      // Check single-time consent for this user
+      if (typeof window !== "undefined") {
+        const hasConsent = localStorage.getItem(`carelynx_consent_accepted_${fbUser.uid}`) === "true";
+        if (hasConsent) {
+          setHasSessionUploadConsent(true);
+          setConsentAge(true);
+          setConsentPrivacy(true);
+        }
+      }
+
       setShowAuthModal(false);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Google Sign-In failed");
@@ -414,6 +456,9 @@ function HomeContent() {
     setCurrentUser(null);
     setUserCases([]);
     setShowHistoryDrawer(false);
+    setHasSessionUploadConsent(false);
+    setConsentAge(false);
+    setConsentPrivacy(false);
   };
 
   const handleOpenProfile = async () => {
@@ -459,7 +504,7 @@ function HomeContent() {
       if (saved.preferredLanguage && saved.preferredLanguage !== language) {
         handleLanguageChange(saved.preferredLanguage as Lang);
       }
-      setProfileSuccessMsg("Profile details saved successfully to Firestore single table ('user_data').");
+      setProfileSuccessMsg("Profile details saved successfully");
       const updatedMaster = await getMasterUserData(currentUser.id);
       setProfileActivities(updatedMaster.activities || []);
     } catch (err) {
@@ -650,6 +695,11 @@ function HomeContent() {
     filename: string = "sample_discharge_summary.pdf",
     targetSection?: string
   ) => {
+    if (!currentUser) {
+      setAuthError("Please sign in or create an account to explore clinical paperwork.");
+      setShowAuthModal(true);
+      return;
+    }
     try {
       setIsUploading(true);
       setError(null);
@@ -668,7 +718,7 @@ function HomeContent() {
       setError(err instanceof Error ? err.message : "Failed to load sample document");
       setIsUploading(false);
     }
-  }, [uploadAndProcessFile]);
+  }, [uploadAndProcessFile, currentUser]);
 
   // Handle custom events and URL parameters from Navbar / external links
   useEffect(() => {
@@ -845,6 +895,11 @@ function HomeContent() {
 
   // Handle multilingual translation
   const handleLanguageChange = async (targetLang: "en" | "hi" | "gu" | "mr" | "ta" | "te") => {
+    if (!currentUser) {
+      setAuthError("Please sign in or create an account to translate clinical paperwork.");
+      setShowAuthModal(true);
+      return;
+    }
     if (targetLang === "en") {
       setLanguage("en");
       return;
@@ -871,7 +926,99 @@ function HomeContent() {
     }
   };
 
+  // Break long discharge instructions into conversational chunks (<140 chars) to prevent Chromium TTS freeze
+  const splitIntoSpeechChunks = (text: string, maxLen = 140): string[] => {
+    const rawSentences = text
+      .split(/(?<=[.?!;:\n])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    
+    const chunks: string[] = [];
+    for (const sent of rawSentences) {
+      if (sent.length <= maxLen) {
+        chunks.push(sent);
+      } else {
+        const words = sent.split(" ");
+        let currentChunk = "";
+        for (const w of words) {
+          if ((currentChunk + " " + w).trim().length <= maxLen) {
+            currentChunk = (currentChunk + " " + w).trim();
+          } else {
+            if (currentChunk) chunks.push(currentChunk);
+            currentChunk = w;
+          }
+        }
+        if (currentChunk) chunks.push(currentChunk);
+      }
+    }
+    return chunks;
+  };
+
+  const handleStopReadAloud = () => {
+    isSpeechStoppedRef.current = true;
+    speechQueueRef.current = [];
+    currentUtteranceRef.current = null;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setTtsState("idle");
+  };
+
+  const playNextSpeechChunk = (synth: SpeechSynthesis, bcp47: string, voice?: SpeechSynthesisVoice) => {
+    if (isSpeechStoppedRef.current || speechQueueRef.current.length === 0) {
+      setTtsState("idle");
+      currentUtteranceRef.current = null;
+      return;
+    }
+
+    const nextChunk = speechQueueRef.current.shift();
+    if (!nextChunk) {
+      setTtsState("idle");
+      currentUtteranceRef.current = null;
+      return;
+    }
+
+    try {
+      const utt = new SpeechSynthesisUtterance(nextChunk);
+      currentUtteranceRef.current = utt; // Critical: prevents Chromium V8 garbage collection mid-speech
+
+      if (voice) {
+        utt.voice = voice;
+        utt.lang = voice.lang || bcp47;
+      } else {
+        utt.lang = bcp47;
+      }
+      utt.rate = 0.95;
+
+      utt.onend = () => {
+        if (!isSpeechStoppedRef.current) {
+          playNextSpeechChunk(synth, bcp47, voice);
+        }
+      };
+
+      utt.onerror = (e) => {
+        console.warn("Speech chunk error or interrupted:", e);
+        if (!isSpeechStoppedRef.current) {
+          playNextSpeechChunk(synth, bcp47, voice);
+        }
+      };
+
+      synth.speak(utt);
+      if (synth.paused) {
+        synth.resume();
+      }
+    } catch (err) {
+      console.warn("Error playing speech chunk:", err);
+      setTtsState("idle");
+    }
+  };
+
   const handleToggleReadAloud = () => {
+    if (!currentUser) {
+      setAuthError("Please sign in or create an account to use the Read Aloud accessibility feature.");
+      setShowAuthModal(true);
+      return;
+    }
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       alert("Speech synthesis is not supported by your browser.");
       return;
@@ -889,13 +1036,15 @@ function HomeContent() {
       return;
     }
 
-    synth.cancel();
+    // Starting new playback
+    handleStopReadAloud();
+    isSpeechStoppedRef.current = false;
 
     const bcp47 = SPEECH_LANG[language] || "en-IN";
-    const voices = synth.getVoices();
+    const voices = synth.getVoices() || [];
     const prefix = bcp47.split("-")[0].toLowerCase();
 
-    // Multi-stage voice detection
+    // Multi-stage voice matching with universal fallback
     let voice = voices.find(v => v.lang.replace("_", "-").toLowerCase() === bcp47.toLowerCase());
     if (!voice) voice = voices.find(v => v.lang.replace("_", "-").toLowerCase().startsWith(prefix));
     if (!voice) {
@@ -904,8 +1053,11 @@ function HomeContent() {
       if (keyword) voice = voices.find(v => v.name.toLowerCase().includes(keyword));
     }
     if (!voice && language !== "en") {
-      // Graceful fallback to Indian locale or system voice
+      // Graceful fallback to Indian locale or any available voice
       voice = voices.find(v => v.lang.toLowerCase().includes("in")) || voices[0];
+    }
+    if (!voice && voices.length > 0) {
+      voice = voices[0];
     }
 
     const intro = READ_ALOUD_INTRO[language] || READ_ALOUD_INTRO.en;
@@ -1002,28 +1154,16 @@ function HomeContent() {
       sectionsText.push(`${UI_I18N[language]?.dates_title || "Hospital Stay Dates"}: ${dateItems}`);
     }
 
-    const speechText = sectionsText.join(". ");
-    const speech = new SpeechSynthesisUtterance(speechText);
-    speech.lang = bcp47;
-    if (voice) {
-      speech.voice = voice;
+    const fullText = sectionsText.join(". ");
+    const chunks = splitIntoSpeechChunks(fullText, 140);
+    if (chunks.length === 0) {
+      setTtsState("idle");
+      return;
     }
-    speech.rate = 0.95;
 
-    speech.onend = () => setTtsState("idle");
-    speech.onerror = () => setTtsState("idle");
-    speech.onpause = () => setTtsState("paused");
-    speech.onresume = () => setTtsState("playing");
-
-    synth.speak(speech);
+    speechQueueRef.current = chunks;
     setTtsState("playing");
-  };
-
-  const handleStopReadAloud = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    setTtsState("idle");
+    playNextSpeechChunk(synth, bcp47, voice);
   };
 
 
@@ -1031,6 +1171,12 @@ function HomeContent() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!currentUser) {
+      setAuthError("Please sign in or create an account to upload paperwork.");
+      setShowAuthModal(true);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     if (!hasSessionUploadConsent) {
       setPendingFile(file);
       setShowUploadConsentModal(true);
@@ -1042,6 +1188,11 @@ function HomeContent() {
   };
 
   const initiateUploadClick = () => {
+    if (!currentUser) {
+      setAuthError("Please sign in or create an account to upload paperwork.");
+      setShowAuthModal(true);
+      return;
+    }
     if (hasSessionUploadConsent) {
       fileInputRef.current?.click();
     } else {
@@ -1053,6 +1204,17 @@ function HomeContent() {
     if (!consentAge || !consentPrivacy) return;
     setHasSessionUploadConsent(true);
     setShowUploadConsentModal(false);
+
+    // Persist single-time consent for logged-in user so they are never asked again
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(`carelynx_consent_accepted_${currentUser.id}`, "true");
+        logUserActivity(currentUser.id, "PATIENT_CONSENT_ACCEPTED", "Confirmed patient paperwork privacy & clinical navigation consent.");
+      } catch {
+        // non-blocking
+      }
+    }
+
     if (pendingFile) {
       const f = pendingFile;
       setPendingFile(null);
@@ -1069,6 +1231,11 @@ function HomeContent() {
   };
   
   const viewEvidence = async (fact: FactResponse) => {
+    if (!currentUser) {
+      setAuthError("Please sign in or create an account to inspect verbatim evidence.");
+      setShowAuthModal(true);
+      return;
+    }
     setSelectedFact(fact);
     setIsFetchingEvidence(true);
     setEvidence([]);
@@ -1128,7 +1295,7 @@ function HomeContent() {
   const instructions = facts.filter(f => (f.fact_type === "instruction" || f.fact_type === "documented_condition" || f.fact_type === "encounter_date") && f.status !== "REJECTED");
 
   return (
-    <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-12">
+    <div className="flex-1 w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col gap-8 sm:gap-12">
       {/* Global Error Banner */}
       {error && (
         <div className="p-4 border border-rose-200 bg-rose-50 text-rose-800 rounded-2xl text-sm flex items-start gap-3 shadow-xs no-print fade-in">
@@ -1705,10 +1872,67 @@ function HomeContent() {
               <p className="text-xs text-slate-500 mt-1">Grounding instructions against verbatim source sentences</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 1. Critical Warnings & Precautions */}
-              {warnings.length > 0 && (
-                <section className="col-span-1 lg:col-span-2 p-6 rounded-3xl bg-rose-50/70 border border-rose-200/80 flex flex-col gap-4 shadow-xs" id="warnings">
+            <>
+              {/* Mobile Portrait Dedicated Tab Filter Bar */}
+              <div className="md:hidden flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar -mx-1 px-1">
+                <button
+                  onClick={() => setMobileTab("all")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-2xs cursor-pointer ${
+                    mobileTab === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  All Items ({facts.filter(f => f.status !== "REJECTED").length})
+                </button>
+                {warnings.length > 0 && (
+                  <button
+                    onClick={() => setMobileTab("warnings")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                      mobileTab === "warnings" ? "bg-rose-600 text-white" : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Warnings ({warnings.length})</span>
+                  </button>
+                )}
+                {appointments.length > 0 && (
+                  <button
+                    onClick={() => setMobileTab("followups")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                      mobileTab === "followups" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-800 border border-purple-200"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Follow-ups ({appointments.length})</span>
+                  </button>
+                )}
+                {medications.length > 0 && (
+                  <button
+                    onClick={() => setMobileTab("meds")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                      mobileTab === "meds" ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-800 border border-sky-200"
+                    }`}
+                  >
+                    <Pill className="w-3.5 h-3.5" />
+                    <span>Prescriptions ({medications.length})</span>
+                  </button>
+                )}
+                {instructions.length > 0 && (
+                  <button
+                    onClick={() => setMobileTab("instructions")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                      mobileTab === "instructions" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Care Plan ({instructions.length})</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 1. Critical Warnings & Precautions */}
+                {warnings.length > 0 && (
+                  <section className={`col-span-1 lg:col-span-2 p-6 rounded-3xl bg-rose-50/70 border border-rose-200/80 flex flex-col gap-4 shadow-xs ${mobileTab !== 'all' && mobileTab !== 'warnings' ? 'hidden md:flex' : 'flex'}`} id="warnings">
                   <div className="flex items-center gap-2.5 border-b border-rose-200 pb-3">
                     <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
                       <AlertTriangle className="w-4 h-4" />
@@ -1783,7 +2007,7 @@ function HomeContent() {
               )}
 
               {/* 2. Upcoming Follow-up Appointments */}
-              <section className="p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs" id="appointments">
+              <section className={`p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs ${mobileTab !== 'all' && mobileTab !== 'followups' ? 'hidden md:flex' : 'flex'}`} id="appointments">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
@@ -1810,58 +2034,77 @@ function HomeContent() {
                         <div 
                           key={f.id} 
                           onClick={() => viewEvidence(f)}
-                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
+                          className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col gap-3 group ${
                             isConflict 
-                              ? "bg-rose-50 border-rose-300 hover:bg-rose-100/50" 
-                              : "bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
+                              ? "bg-rose-50/70 border-rose-300 hover:bg-rose-100/60 shadow-xs" 
+                              : "bg-slate-50/80 hover:bg-slate-100/80 border-slate-200/90 shadow-2xs"
                           }`}
                         >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 shrink-0">
-                              <Clock className="w-5 h-5" />
-                            </div>
-                            <div className="flex-1">
-                              <span className="text-xs font-bold text-slate-900 block">
-                                {title}
-                              </span>
-                              <span className="text-[11px] text-slate-500 block mt-0.5">
-                                {subtitle}
-                              </span>
-                              {Boolean(simplified) && (
-                                <span className="text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 border border-purple-100">
-                                  <Sparkles className="w-2.5 h-2.5 text-purple-500 shrink-0" />
-                                  {simplified}
+                          {/* Top White Point Tab Header */}
+                          <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0 shadow-2xs">
+                                <Clock className="w-5 h-5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-bold text-slate-900 block truncate">
+                                  {title}
                                 </span>
+                                <span className="text-xs font-semibold text-slate-500 block mt-0.5">
+                                  {subtitle}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
+                              <StatusBadge status={f.status} lang={language} />
+                              {isConflict && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 transition"
+                                  title="Click to resolve this conflict in the Review Queue"
+                                >
+                                  <span>[{ui.cautionConflict}]</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
                               )}
+                              {isMissingEvidence && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
+                                  title="Click to review missing evidence in the Review Queue"
+                                >
+                                  <span>[{ui.cautionMissingEvidence}]</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                              <span className="text-xs font-semibold text-purple-700 hover:underline flex items-center gap-0.5 ml-1">
+                                {ui.viewSourceProof}
+                                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                              </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <StatusBadge status={f.status} lang={language} />
-                            {isConflict && (
-                              <a
-                                href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 transition"
-                                title="Click to resolve this conflict in the Review Queue"
-                              >
-                                <span>[{ui.cautionConflict}]</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                            {isMissingEvidence && (
-                              <a
-                                href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
-                                title="Click to review missing evidence in the Review Queue"
-                              >
-                                <span>[{ui.cautionMissingEvidence}]</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                          </div>
+                          {/* Purple Guidance Paragraph - Cleanly Positioned Below the White Point Tab */}
+                          {Boolean(simplified) && (
+                            <div className="w-full bg-purple-50/95 border border-purple-200/90 rounded-xl p-3 sm:p-3.5 flex items-start gap-3 shadow-2xs">
+                              <div className="w-6 h-6 rounded-lg bg-purple-200/80 text-purple-800 flex items-center justify-center shrink-0 mt-0.5">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-700" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[10px] font-bold tracking-wider uppercase text-purple-900 bg-purple-100/90 px-2 py-0.5 rounded-full border border-purple-200/80">
+                                    Plain Language Guidance
+                                  </span>
+                                </div>
+                                <p className="text-xs text-purple-950 leading-relaxed font-medium">
+                                  {simplified}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1870,7 +2113,7 @@ function HomeContent() {
               </section>
 
               {/* 3. Prescription Medications */}
-              <section className="p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs" id="prescriptions">
+              <section className={`p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs ${mobileTab !== 'all' && mobileTab !== 'meds' ? 'hidden md:flex' : 'flex'}`} id="prescriptions">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
@@ -1959,7 +2202,7 @@ function HomeContent() {
               </section>
 
               {/* 4. Home Care & Recovery Instructions */}
-              <section className="col-span-1 lg:col-span-2 p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs" id="instructions">
+              <section className={`col-span-1 lg:col-span-2 p-6 rounded-3xl bg-white/80 backdrop-blur-md border border-slate-200/80 flex flex-col gap-4 shadow-xs ${mobileTab !== 'all' && mobileTab !== 'instructions' ? 'hidden md:flex' : 'flex'}`} id="instructions">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
@@ -2036,7 +2279,8 @@ function HomeContent() {
                 )}
               </section>
             </div>
-          )}
+          </>
+        )}
         </div>
       )}
 
@@ -2541,7 +2785,7 @@ function HomeContent() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-lg leading-tight">Patient Profile Details</h3>
-                  <p className="text-xs text-slate-500">Securely stored in Firestore single table (`user_data`)</p>
+                  <p className="text-xs text-slate-500">Securely encrypted & stored with strict patient confidentiality</p>
                 </div>
               </div>
               <button
@@ -2558,7 +2802,7 @@ function HomeContent() {
               {profileLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
                   <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
-                  <span className="text-xs">Loading profile from Firestore single table...</span>
+                  <span className="text-xs">Loading profile details...</span>
                 </div>
               ) : (
                 <form onSubmit={handleSaveProfile} id="profile-edit-form" className="space-y-4">
@@ -2697,7 +2941,7 @@ function HomeContent() {
                   {profileActivities.length > 0 && (
                     <div className="pt-4 border-t border-slate-100">
                       <span className="text-xs font-bold text-slate-700 block mb-2">
-                        Recent User Activities (Firestore Single Table)
+                        Recent Account Activities
                       </span>
                       <div className="max-h-32 overflow-y-auto divide-y divide-slate-100 bg-slate-50 rounded-xl p-2.5 border border-slate-200 text-[11px]">
                         {profileActivities.slice(0, 5).map((act: any, idx: number) => (
@@ -2734,7 +2978,7 @@ function HomeContent() {
                 {profileSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving to Firestore...</span>
+                    <span>Saving changes...</span>
                   </>
                 ) : (
                   <>
@@ -2745,6 +2989,70 @@ function HomeContent() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Mobile Portrait Dedicated Bottom Action Floating Bar */}
+      {activeCase && (
+        <div className="md:hidden fixed bottom-3 inset-x-3 z-30 bg-white/95 backdrop-blur-md rounded-2xl p-2.5 border border-slate-200/90 shadow-xl flex items-center justify-between gap-2 no-print">
+          <button
+            onClick={handleToggleReadAloud}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
+              ttsState === "playing"
+                ? "bg-amber-500 text-white"
+                : ttsState === "paused"
+                ? "bg-emerald-600 text-white"
+                : "bg-slate-100 text-slate-800 border border-slate-200"
+            }`}
+          >
+            {ttsState === "playing" ? (
+              <>
+                <Pause className="w-4 h-4 animate-pulse" />
+                <span>{ui.pause}</span>
+              </>
+            ) : ttsState === "paused" ? (
+              <>
+                <Play className="w-4 h-4" />
+                <span>{ui.resume}</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-4 h-4 text-emerald-600" />
+                <span>{ui.readAloud}</span>
+              </>
+            )}
+          </button>
+
+          {ttsState !== "idle" && (
+            <button
+              onClick={handleStopReadAloud}
+              className="p-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 shadow-2xs cursor-pointer"
+              title="Stop Read Aloud"
+            >
+              <Square className="w-4 h-4 fill-current" />
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              const langs: ("en" | "hi" | "gu" | "mr" | "ta" | "te")[] = ["en", "hi", "gu", "mr", "ta", "te"];
+              const nextIndex = (langs.indexOf(language) + 1) % langs.length;
+              handleLanguageChange(langs[nextIndex]);
+            }}
+            className="py-2 px-3 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1 shadow-2xs cursor-pointer"
+            title="Cycle Language"
+          >
+            <Languages className="w-3.5 h-3.5 text-blue-600" />
+            <span className="uppercase">{language}</span>
+          </button>
+
+          <button
+            onClick={initiateUploadClick}
+            className="py-2 px-3 rounded-xl bg-brand hover:bg-brand-light text-white text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+            <span>Upload</span>
+          </button>
         </div>
       )}
     </div>

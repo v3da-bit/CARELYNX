@@ -416,9 +416,9 @@ function ReviewDashboardContent() {
   });
 
   return (
-    <div className="w-full h-[calc(100dvh-4.5rem)] flex flex-col md:flex-row overflow-hidden bg-slate-50/50">
+    <div className="w-full h-[calc(100dvh-6.5rem)] flex flex-col md:flex-row overflow-hidden max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 pb-4 pt-1 gap-4">
       {/* Left Sidebar: Queue of Open Reviews */}
-      <aside className="w-full md:w-80 lg:w-96 border-r border-slate-200/80 bg-white flex flex-col shrink-0 h-full overflow-hidden">
+      <aside className="w-full md:w-80 lg:w-96 border border-slate-200/80 rounded-2xl bg-white flex flex-col shrink-0 h-full overflow-hidden shadow-xs">
         {/* Workspace Brand / Header */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-2">
@@ -531,7 +531,7 @@ function ReviewDashboardContent() {
       </aside>
 
       {/* Main Review Inspection Panel */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto custom-scrollbar bg-slate-50">
+      <main className="flex-1 flex flex-col h-full overflow-y-auto custom-scrollbar bg-slate-50/50 border border-slate-200/80 rounded-2xl shadow-xs">
         {selectedReview ? (
           <div className="p-6 max-w-5xl mx-auto w-full flex flex-col gap-6">
             {/* Header / Case Details */}
