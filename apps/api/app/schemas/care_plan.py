@@ -21,6 +21,7 @@ class CarePlanDisplay(BaseModel):
     title: str | None = None
     subtitle: str | None = None
     date: str | None = None
+    simplified_meaning: str | None = None
 
 
 class CarePlanItem(FactWithEvidence):

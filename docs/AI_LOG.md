@@ -11,6 +11,90 @@
 ## Task Commit History
 
 ```text
+commit (uncommitted — branch Meet)
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-14 21:41:00 +0530
+
+    fix(firebase): handle Firestore security rules permission-denied gracefully, add local memory cache fallback, and create firestore.rules
+
+    - Context / Problem addressed:
+      1. Console FirebaseError: "Missing or insufficient permissions" occurred when Cloud Firestore security
+         rules on project buttler-8e847 restricted direct client read/writes on `/users/{userId}/**`.
+      2. App must never crash or lose patient clinical memory when Firestore security rules are locked or pending configuration.
+
+    - Architectural decisions & changes made:
+      1. Resilient Dual-Layer Memory Engine (apps/web/lib/firebase.ts):
+         - Created getLocalCases and setLocalCases helpers with persistent browser localStorage caching under
+           `carelynx_cases_{userId}`.
+         - saveUserCaseToFirestore: Saves to local memory immediately before initiating Firestore remote write.
+           Catches permission-denied without console error spam.
+         - getUserCasesFromFirestore: Queries Firestore, automatically populates local cache on success, and
+           seamlessly falls back to local memory if permissions are restricted.
+         - deleteUserCaseFromFirestore: Cleanses both local memory and Firestore doc safely.
+         - Profile writes in registerWithFirebase and loginWithFirebase: Guarded with non-blocking try/catch.
+      2. Security Rules Specification (firestore.rules):
+         - Authored firestore.rules with authenticated tenant isolation on `/users/{userId}` and sub-collection
+           `/users/{userId}/cases/{caseId}`, plus development fallback rules for easy Firebase Console setup.
+
+    - Verification & Testing:
+      - apps/web build: Ran `npm run build` with Next.js 16.3.8 Turbopack; 10/10 routes compiled with 0 errors in 1019ms.
+```
+
+```text
+commit (uncommitted — branch Meet)
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-14 21:23:00 +0530
+
+    feat(frontend & auth): human-readable review details, Firebase Auth & Firestore memory, complete translation, Read Aloud audio controls, and planner caution labels
+
+    - Context / Problem addressed:
+      1. In /review, extracted fact details were shown as raw JSON strings (e.g. {"name": "Azithromycin", ...}).
+         Required formatting in clean, compassionate, human language.
+      2. Automated memory and user history persistence via Cloud Firestore and proper authentication via Firebase Auth
+         using the provided buttler-8e847 configuration (with Google Sign-In and email/password support).
+      3. Translation pipeline fix: Ensure comprehensive multilingual translation of the entire care plan (titles,
+         subtitles, simplified meanings, instructions, caution labels, and section headings) across all supported Indic languages.
+      4. Read Aloud voice accessibility fix: Eliminate blocking browser error ("Your browser has no <lang>-IN voice installed...")
+         in languages other than English/Hindi, provide graceful multi-tier locale voice fallback, and implement interactive
+         Play, Pause, Resume, and Stop controls with active status indicators.
+      5. Planner Review Alerts: Ensure review alerts display with their respective caution labels ([Caution: Conflict],
+         [Caution: Missing Evidence]) and provide direct one-click redirect links to the /review queue.
+
+    - Architectural decisions & changes made:
+      1. Review Details Human-Language Formatter (apps/web/app/review/page.tsx):
+         - Created HumanReadableFactValue component rendering structured, accessible layouts with badges and icons
+           for medications, follow-up appointments, emergency warning signs, home instructions, allergies, and encounter dates.
+         - Integrated searchParams (?id=...&focus=...) with Suspense for deep linking from the planner.
+      2. Firebase Auth & Cloud Firestore Memory (apps/web/lib/firebase.ts & apps/web/package.json):
+         - Added firebase v13 SDK dependency.
+         - Initialized Firebase with user's exact configuration (buttler-8e847).
+         - Created registerWithFirebase, loginWithFirebase, loginWithGoogle, logoutFirebase, and onAuthStateChange.
+         - Created saveUserCaseToFirestore, getUserCasesFromFirestore, and deleteUserCaseFromFirestore managing
+           tenant-isolated case documents under `users/{userId}/cases/{caseId}`.
+         - Synchronized Firestore memory with local backend case state in apps/web/app/page.tsx.
+      3. Comprehensive Multilingual Translation:
+         - apps/api/app/schemas/care_plan.py: Added simplified_meaning field to CarePlanDisplay schema.
+         - apps/api/app/services/care_plan.py: Updated display_for and _translatable to extract and translate
+           simplified_meaning across all Indic languages.
+         - apps/web/app/page.tsx: Introduced UI_I18N dictionary providing localized section headers, labels, and
+           caution text across English, Hindi, Gujarati, Marathi, Tamil, and Telugu without losing fact value structures.
+      4. Read Aloud Audio Player with Play / Pause / Resume / Stop:
+         - apps/web/app/page.tsx: Implemented ttsState ("idle" | "playing" | "paused") with handleToggleReadAloud
+           and handleStopReadAloud.
+         - Replaced blocking alert() with graceful multi-tier voice resolution: exact BCP47 -> prefix match ->
+           regional keyword match -> Indian English/system fallback.
+         - Added interactive audio pill showing Play, Pause, Resume, and Stop buttons with pulsing indicators.
+      5. Planner Review Alerts & Caution Labels:
+         - apps/web/app/page.tsx: Integrated Review Alerts banner showing all flagged facts with [Caution: Conflict]
+           and [Caution: Missing Evidence] badges linking directly to `/review?id={caseId}&focus={factId}`.
+         - Added caution badges to each individual card in the planner.
+
+    - Verification & Testing:
+      - apps/web build: Ran `npm run build` with Next.js 16.3.8 Turbopack; 10/10 routes compiled with 0 errors.
+      - apps/api tests: Ran `./apps/api/.venv/bin/pytest apps/api/tests`; 127/127 tests passed (100%).
+```
+
+```text
 commit d28408d (branch Meet)
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-13 12:33:00 +0530

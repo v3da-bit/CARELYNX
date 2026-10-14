@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { HeartHandshake, AlertTriangle, Sparkles, Menu, X, Stethoscope, FileText, Pill, Activity, Clock } from "lucide-react";
-import { getOpenReviews } from "@/lib/api";
+import { HeartHandshake, AlertTriangle, Sparkles, Menu, X, Stethoscope, FileText, Pill, Activity, Clock, User } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -13,10 +12,14 @@ export default function Navbar() {
   const [openReviewCount, setOpenReviewCount] = useState<number>(0);
 
   useEffect(() => {
-    getOpenReviews()
-      .then(reviews => setOpenReviewCount(reviews.length))
-      .catch(() => setOpenReviewCount(0));
-  }, [pathname]);
+    // Only show review alerts that belong to the current user's active uploaded file
+    const handleCaseAlerts = (e: Event) => {
+      const custom = e as CustomEvent<{ count: number }>;
+      setOpenReviewCount(custom.detail?.count || 0);
+    };
+    window.addEventListener("carelynx:active-alerts", handleCaseAlerts);
+    return () => window.removeEventListener("carelynx:active-alerts", handleCaseAlerts);
+  }, []);
 
   const handleUploadClick = () => {
     setMobileMenuOpen(false);
@@ -117,9 +120,30 @@ export default function Navbar() {
             <Clock className="w-4 h-4 text-emerald-700" />
             <span>My History</span>
           </button>
-          <Link 
-            href="/review" 
-            className="px-3.5 sm:px-4 py-2 rounded-full bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm shadow-rose-500/20 transition-all"
+          
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("carelynx:profile"))}
+            className="px-3.5 py-2 rounded-full border border-slate-300 hover:border-blue-400 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
+            id="nav-my-profile"
+            title="View and edit profile details"
+          >
+            <User className="w-4 h-4 text-blue-600" />
+            <span>Profile</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              let recentCaseId: string | null = null;
+              if (typeof window !== "undefined") {
+                recentCaseId = localStorage.getItem("carelynx_recent_case_id");
+              }
+              if (recentCaseId) {
+                router.push(`/review?case_id=${recentCaseId}`);
+              } else {
+                router.push("/review");
+              }
+            }}
+            className="px-3.5 sm:px-4 py-2 rounded-full bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm shadow-rose-500/20 transition-all cursor-pointer"
             id="nav-emergency"
           >
             <AlertTriangle className="w-4 h-4" />
@@ -129,7 +153,8 @@ export default function Navbar() {
                 {openReviewCount}
               </span>
             )}
-          </Link>
+          </button>
+
           <button 
             onClick={handleUploadClick}
             className="px-4 sm:px-5 py-2 rounded-full bg-brand hover:bg-brand-light active:bg-emerald-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm shadow-emerald-500/20 transition-all cursor-pointer"
@@ -189,18 +214,44 @@ export default function Navbar() {
             <span>Clinical Audit</span>
           </Link>
 
+          <button 
+            onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new CustomEvent("carelynx:history")); }}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-slate-100 text-sm font-semibold text-slate-800 text-left cursor-pointer"
+          >
+            <Clock className="w-4 h-4 text-emerald-600" />
+            <span>My History</span>
+          </button>
+
+          <button 
+            onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new CustomEvent("carelynx:profile")); }}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-slate-100 text-sm font-semibold text-slate-800 text-left cursor-pointer"
+          >
+            <User className="w-4 h-4 text-blue-600" />
+            <span>Profile Details</span>
+          </button>
+
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
-            <Link 
-              href="/review" 
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-rose-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs"
+            <button 
+              onClick={() => {
+                setMobileMenuOpen(false);
+                let recentCaseId: string | null = null;
+                if (typeof window !== "undefined") {
+                  recentCaseId = localStorage.getItem("carelynx_recent_case_id");
+                }
+                if (recentCaseId) {
+                  router.push(`/review?case_id=${recentCaseId}`);
+                } else {
+                  router.push("/review");
+                }
+              }}
+              className="w-full py-2.5 rounded-xl bg-rose-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <AlertTriangle className="w-4 h-4" />
               <span>Review Alert {openReviewCount > 0 ? `(${openReviewCount} Open)` : ''}</span>
-            </Link>
+            </button>
             <button 
               onClick={handleUploadClick}
-              className="w-full py-2.5 rounded-xl bg-brand text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs"
+              className="w-full py-2.5 rounded-xl bg-brand text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
               <span>Upload Paperwork</span>

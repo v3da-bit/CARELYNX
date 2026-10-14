@@ -84,6 +84,7 @@ def test_care_plan_shape_sorting_and_display(client: TestClient, db: Session) ->
         "title": "Follow-up appointment",
         "subtitle": "Cardiology · Dr. Sharma",
         "date": "2026-10-16",
+        "simplified_meaning": None,
     }
     assert s["follow_ups"][2]["status"] == "NEEDS_REVIEW"  # non-verified items still shown, with status
 
@@ -98,6 +99,7 @@ def test_care_plan_shape_sorting_and_display(client: TestClient, db: Session) ->
         "title": "Discharge date",
         "subtitle": None,
         "date": "2026-10-03",
+        "simplified_meaning": None,
     }
     assert s["instructions"][0]["display"]["title"] == "Rest at home for 7 days."
     assert {i["translation_status"] for sec in s.values() for i in sec} == {"source"}

@@ -88,32 +88,47 @@ def _join(value: dict[str, Any], *keys: str) -> str | None:
 
 def display_for(fact: Fact) -> CarePlanDisplay:
     v = fact.value or {}
+    simplified = _s(v, "simplified_meaning") or _s(v, "meaning") or _s(v, "explanation")
     match fact.fact_type:
         case FactType.FOLLOW_UP:
             return CarePlanDisplay(
                 title="Follow-up appointment",
                 subtitle=_join(v, "department", "clinician", "time"),
                 date=_s(v, "date"),
+                simplified_meaning=simplified,
             )
         case FactType.MEDICATION:
             return CarePlanDisplay(
                 title=_s(v, "name"),
                 subtitle=_join(v, "strength", "frequency", "timing", "duration", "quantity"),
+                simplified_meaning=simplified,
             )
         case FactType.ALLERGY:
             return CarePlanDisplay(
-                title="No known allergies" if v.get("no_known_allergies") is True else _s(v, "substance")
+                title="No known allergies" if v.get("no_known_allergies") is True else _s(v, "substance"),
+                simplified_meaning=simplified,
             )
         case FactType.ENCOUNTER_DATE:
-            return CarePlanDisplay(title=_ENCOUNTER_TITLES.get(str(v.get("kind"))), date=_s(v, "date"))
+            return CarePlanDisplay(
+                title=_ENCOUNTER_TITLES.get(str(v.get("kind"))),
+                date=_s(v, "date"),
+                simplified_meaning=simplified,
+            )
         case _:
-            return CarePlanDisplay(title=_s(v, "text"))
+            return CarePlanDisplay(
+                title=_s(v, "text"),
+                simplified_meaning=simplified,
+            )
 
 
 def _translatable(fact: Fact, d: CarePlanDisplay) -> list[str]:
     """Field names of `display` to translate. Medication titles are drug names: never sent."""
-    fields = ["subtitle"] if fact.fact_type == FactType.MEDICATION else ["title", "subtitle"]
-    return [f for f in fields if getattr(d, f)]
+    fields = (
+        ["subtitle", "simplified_meaning"]
+        if fact.fact_type == FactType.MEDICATION
+        else ["title", "subtitle", "simplified_meaning"]
+    )
+    return [f for f in fields if getattr(d, f, None)]
 
 
 async def build_care_plan(db: Session, case_id: uuid.UUID, lang: Language) -> CarePlanResponse:

@@ -8,11 +8,231 @@ import {
   type Health, type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedText, type UserProfile
 } from "@/lib/api";
 import { 
+  registerWithFirebase, loginWithFirebase, loginWithGoogle, logoutFirebase,
+  onAuthStateChange, saveUserCaseToFirestore, getUserCasesFromFirestore,
+  saveUserProfileToFirestore, getMasterUserData, logUserActivity,
+  type FirestoreCaseRecord, type UserProfileData, type SingleTableUserData
+} from "@/lib/firebase";
+import { 
   FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
   ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock,
-  User, LogOut, Key, Mail
+  User, LogOut, Key, Mail, Play, Pause, Square, Volume2, CheckCircle2
 } from "lucide-react";
+
+export type Lang = "en" | "hi" | "gu" | "mr" | "ta" | "te";
+
+export const UI_I18N: Record<Lang, {
+  printPlan: string;
+  readAloud: string;
+  pause: string;
+  resume: string;
+  stop: string;
+  newEncounter: string;
+  attachedFiles: string;
+  reviewAlertsTitle: string;
+  reviewAlertsDesc: string;
+  goToReview: string;
+  cautionConflict: string;
+  cautionMissingEvidence: string;
+  emergencyWarnings: string;
+  emergencySub: string;
+  viewSourceProof: string;
+  followups: string;
+  followupsEmpty: string;
+  prescriptions: string;
+  prescriptionsEmpty: string;
+  homeCare: string;
+  homeCareEmpty: string;
+  instructionsLabel: string;
+  warnings_title: string;
+  appointments_title: string;
+  medications_title: string;
+  instructions_title: string;
+  allergies_title: string;
+  dates_title: string;
+}> = {
+  en: {
+    printPlan: "Print Plan",
+    readAloud: "Read Aloud",
+    pause: "Pause",
+    resume: "Resume",
+    stop: "Stop",
+    newEncounter: "New Encounter",
+    attachedFiles: "Attached Files:",
+    reviewAlertsTitle: "Clinical Safety & Document Review Alerts",
+    reviewAlertsDesc: "Issues were flagged across your paperwork that require clinician or patient confirmation. CARELYNX does not guess ambiguous facts.",
+    goToReview: "Open Review Queue →",
+    cautionConflict: "Caution: Conflict",
+    cautionMissingEvidence: "Caution: Missing Evidence",
+    emergencyWarnings: "Emergency Warning Signs & Red Flags",
+    emergencySub: "Seek immediate medical care if you experience any of the following",
+    viewSourceProof: "View Source Proof →",
+    followups: "Follow-up Appointments",
+    followupsEmpty: "No follow-up dates extracted from uploaded pages.",
+    prescriptions: "Prescribed Medications",
+    prescriptionsEmpty: "No discharge prescriptions identified.",
+    homeCare: "Home Care & Daily Instructions",
+    homeCareEmpty: "No specific home instructions extracted.",
+    instructionsLabel: "Instructions:",
+    warnings_title: "Emergency Warning Signs",
+    appointments_title: "Follow-up Appointments",
+    medications_title: "Prescribed Medications",
+    instructions_title: "Care Instructions",
+    allergies_title: "Documented Allergies",
+    dates_title: "Hospital Stay Dates",
+  },
+  hi: {
+    printPlan: "योजना प्रिंट करें",
+    readAloud: "बोलकर सुनाएं",
+    pause: "रोकें",
+    resume: "फिर से चलाएं",
+    stop: "बंद करें",
+    newEncounter: "नया मरीज़ दस्तावेज़",
+    attachedFiles: "संलग्न फ़ाइलें:",
+    reviewAlertsTitle: "चिकित्सीय सुरक्षा व समीक्षा चेतावनियां",
+    reviewAlertsDesc: "आपके दस्तावेज़ों में ऐसे बिंदु मिले हैं जिनकी डॉक्टर से पुष्टि आवश्यक है। CARELYNX किसी भी विरोधाभास का अनुमान नहीं लगाता।",
+    goToReview: "समीक्षा सूची खोलें →",
+    cautionConflict: "सावधानी: विरोधाभास",
+    cautionMissingEvidence: "सावधानी: साक्ष्य अनुपलब्ध",
+    emergencyWarnings: "आपातकालीन चेतावनी संकेत व खतरे के लक्षण",
+    emergencySub: "यदि आपको इनमें से कोई भी लक्षण महसूस हो तो तुरंत आपातकालीन चिकित्सा सहायता लें",
+    viewSourceProof: "मूल प्रमाण देखें →",
+    followups: "आगामी डॉक्टर से मिलने का समय",
+    followupsEmpty: "अपलोड किए गए पृष्ठों में से कोई आगामी तारीख नहीं मिली।",
+    prescriptions: "निर्धारित दवाइयां",
+    prescriptionsEmpty: "डिस्चार्ज के समय कोई दवाई दर्ज नहीं है।",
+    homeCare: "घर पर देखभाल व दैनिक निर्देश",
+    homeCareEmpty: "कोई विशिष्ट घरेलू निर्देश नहीं मिले।",
+    instructionsLabel: "निर्देश:",
+    warnings_title: "आपातकालीन चेतावनी संकेत",
+    appointments_title: "आगामी मिलने का समय",
+    medications_title: "निर्धारित दवाइयां",
+    instructions_title: "देखभाल निर्देश",
+    allergies_title: "दर्ज की गई एलर्जी",
+    dates_title: "अस्पताल में भर्ती व छुट्टी की तारीखें",
+  },
+  gu: {
+    printPlan: "યોજના પ્રિન્ટ કરો",
+    readAloud: "મોટેથી વાંચો",
+    pause: "અટકાવો",
+    resume: "ફરીથી ચલાવો",
+    stop: "બંધ કરો",
+    newEncounter: "નવો દર્દી દસ્તાવેજ",
+    attachedFiles: "જોડાયેલ ફાઇલો:",
+    reviewAlertsTitle: "તબીબી સલામતી અને સમીક્ષા ચેતવણીઓ",
+    reviewAlertsDesc: "તમારા કાગળોમાં એવી બાબતો નોંધાઈ છે જેની તબીબી ખાતરી જરૂરી છે.",
+    goToReview: "સમીક્ષા કતાર ખોલો →",
+    cautionConflict: "સાવધાની: વિરોધાભાસ",
+    cautionMissingEvidence: "સાવધાની: પુરાવો ખૂટે છે",
+    emergencyWarnings: "કટોકટી ચેતવણી ચિહ્નો અને રેડ ફ્લેગ્સ",
+    emergencySub: "જો તમને આમાંથી કોઈપણ લક્ષણ જણાય તો તાત્કાલિક તબીબી સારવાર મેળવો",
+    viewSourceProof: "મૂળ પુરાવો જુઓ →",
+    followups: "તબીબી મુલાકાતો",
+    followupsEmpty: "અપલોડ કરેલા પૃષ્ઠોમાંથી કોઈ તારીખ મળી નથી.",
+    prescriptions: "સૂચવેલ દવાઓ",
+    prescriptionsEmpty: "ડિસ્ચાર્જ દવાઓ મળી નથી.",
+    homeCare: "ઘરેલું સંભાળ અને દૈનિક સૂચનાઓ",
+    homeCareEmpty: "કોઈ ચોક્કસ સૂચનાઓ મળી નથી.",
+    instructionsLabel: "સૂચનાઓ:",
+    warnings_title: "કટોકટી ચેતવણી ચિહ્નો",
+    appointments_title: "તબીબી મુલાકાતો",
+    medications_title: "સૂચવેલ દવાઓ",
+    instructions_title: "સંભાળ સૂચનાઓ",
+    allergies_title: "નોંધાયેલ એલર્જી",
+    dates_title: "હોસ્પિટલ રોકાણની તારીખો",
+  },
+  mr: {
+    printPlan: "योजना मुद्रित करा",
+    readAloud: "मोठ्याने वाचा",
+    pause: "थांबवा",
+    resume: "पुन्हा सुरू करा",
+    stop: "बंद करा",
+    newEncounter: "नवीन रुग्ण नोंदणी",
+    attachedFiles: "संलग्न फायली:",
+    reviewAlertsTitle: "वैद्यकीय सुरक्षा आणि पुनरावलोकन सूचना",
+    reviewAlertsDesc: "आपल्या कागदपत्रांमध्ये अशा बाबी आढळल्या आहेत ज्यांची डॉक्टरांकडून पुष्टी आवश्यक आहे.",
+    goToReview: "पुनरावलोकन रांग उघडा →",
+    cautionConflict: "सावधान: विसंगती",
+    cautionMissingEvidence: "सावधान: पुरावा उपलब्ध नाही",
+    emergencyWarnings: "तातडीचे चेतावणी संकेत व धोक्याची लक्षणे",
+    emergencySub: "यापैकी कोणतेही लक्षण आढळल्यास त्वरित वैद्यकीय मदत घ्या",
+    viewSourceProof: "मूळ पुरावा पहा →",
+    followups: "पुढील तपासणीच्या वेळा",
+    followupsEmpty: "अपलोड केलेल्या पानांवरून कोणतीही तारीख सापडली नाही.",
+    prescriptions: "दिलेली औषधे",
+    prescriptionsEmpty: "डिस्चार्ज औषधे सापडली नाहीत.",
+    homeCare: "घरातील काळजी व दैनंदिन सूचना",
+    homeCareEmpty: "कोणत्याही विशिष्ट सूचना सापडल्या नाहीत.",
+    instructionsLabel: "सूचना:",
+    warnings_title: "तातडीचे चेतावणी संकेत",
+    appointments_title: "पुढील तपासणीच्या वेळा",
+    medications_title: "दिलेली औषधे",
+    instructions_title: "काळजीच्या सूचना",
+    allergies_title: "नोंदवलेली ऍलर्जी",
+    dates_title: "रुग्णालयातील मुक्कामाच्या तारखा",
+  },
+  ta: {
+    printPlan: "திட்டத்தை அச்சிடுக",
+    readAloud: "சத்தமாக வாசிக்கவும்",
+    pause: "இடைநிறுத்து",
+    resume: "மீண்டும் தொடங்கு",
+    stop: "நிறுத்து",
+    newEncounter: "புதிய நோயாளி ஆவணம்",
+    attachedFiles: "இணைக்கப்பட்ட கோப்புகள்:",
+    reviewAlertsTitle: "மருத்துவ பாதுகாப்பு மற்றும் மறுஆய்வு எச்சரிக்கைகள்",
+    reviewAlertsDesc: "உங்கள் ஆவணங்களில் மருத்துவர் உறுதிப்படுத்த வேண்டிய முரண்பாடுகள் உள்ளன.",
+    goToReview: "மறுஆய்வு வரிசையைத் திறக்கவும் →",
+    cautionConflict: "எச்சரிக்கை: முரண்பாடு",
+    cautionMissingEvidence: "எச்சரிக்கை: சான்று இல்லை",
+    emergencyWarnings: "அவசர எச்சரிக்கை அறிகுறிகள்",
+    emergencySub: "பின்வருவனவற்றில் ஏதேனும் ஏற்பட்டால் உடனடியாக மருத்துவ உதவியை நாடுங்கள்",
+    viewSourceProof: "அசல் ஆதாரத்தைப் பார்க்கவும் →",
+    followups: "அடுத்த மருத்துவ சந்திப்புகள்",
+    followupsEmpty: "பதிவேற்றிய பக்கங்களில் இருந்து தேதிகள் எதுவும் பெறப்படவில்லை.",
+    prescriptions: "பரிந்துரைக்கப்பட்ட மருந்துகள்",
+    prescriptionsEmpty: "மருந்துகள் எதுவும் குறிப்பிடப்படவில்லை.",
+    homeCare: "வீட்டு பராமரிப்பு மற்றும் அன்றாட வழிமுறைகள்",
+    homeCareEmpty: "குறிப்பிட்ட வழிமுறைகள் எதுவும் இல்லை.",
+    instructionsLabel: "வழிமுறைகள்:",
+    warnings_title: "அவசர எச்சரிக்கை அறிகுறிகள்",
+    appointments_title: "அடுத்த சந்திப்புகள்",
+    medications_title: "மருந்துகள்",
+    instructions_title: "பராமரிப்பு வழிமுறைகள்",
+    allergies_title: "பதிவு செய்யப்பட்ட ஒவ்வாமைகள்",
+    dates_title: "மருத்துவமனை தங்கிய நாட்கள்",
+  },
+  te: {
+    printPlan: "ప్లాన్ ప్రింట్ చేయండి",
+    readAloud: "బిగ్గరగా చదవండి",
+    pause: "విరామం",
+    resume: "పునఃప్రారంభించు",
+    stop: "ఆపివేయి",
+    newEncounter: "కొత్త రోగి రికార్డు",
+    attachedFiles: "జతచేయబడిన ఫైళ్లు:",
+    reviewAlertsTitle: "వైద్య భద్రత మరియు సమీక్ష హెచ్చరికలు",
+    reviewAlertsDesc: "మీ పత్రాలలో డాక్టర్ ధృవీకరణ అవసరమైన అంశాలు గుర్తించబడ్డాయి.",
+    goToReview: "సమీక్ష క్యూను తెరవండి →",
+    cautionConflict: "హెచ్చరిక: వైరుధ్యం",
+    cautionMissingEvidence: "హెచ్చరిక: రుజువు లేదు",
+    emergencyWarnings: "అత్యవసర హెచ్చరిక సంకేతాలు",
+    emergencySub: "కింది వాటిలో ఏవైనా కనిపిస్తే వెంటనే వైద్య సహాయం పొందండి",
+    viewSourceProof: "అసలు రుజువు చూడండి →",
+    followups: "తదుపరి అపాయింట్‌మెంట్లు",
+    followupsEmpty: "అప్‌లోڈ చేసిన పేజీల నుండి తదుపరి తేదీలు కనుగొనబడలేదు.",
+    prescriptions: "సూచించిన మందులు",
+    prescriptionsEmpty: "డిశ్చార్జ్ మందులు గుర్తించబడలేదు.",
+    homeCare: "ఇంటి సంరక్షణ & రోజువారీ సూచనలు",
+    homeCareEmpty: "ఎటువంటి ప్రత్యేక సూచనలు లేవు.",
+    instructionsLabel: "సూచనలు:",
+    warnings_title: "అత్యవసర హెచ్చరిక సంకేతాలు",
+    appointments_title: "తదుపరి అపాయింట్‌మెంట్లు",
+    medications_title: "సూచించిన మందులు",
+    instructions_title: "సంరక్షణ సూచనలు",
+    allergies_title: "నమోదిత అలర్జీలు",
+    dates_title: "ఆసుపత్రి బస తేదీలు",
+  },
+};
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -24,9 +244,10 @@ function HomeContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Translation state
-  const [language, setLanguage] = useState<"en" | "hi" | "gu" | "mr" | "ta" | "te">("en");
+  const [language, setLanguage] = useState<Lang>("en");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translations, setTranslations] = useState<Record<string, TranslatedText>>({});
+  const ui = UI_I18N[language] || UI_I18N.en;
   
   // Evidence popup state
   const [selectedFact, setSelectedFact] = useState<FactResponse | null>(null);
@@ -56,6 +277,26 @@ function HomeContent() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [userCases, setUserCases] = useState<CaseOut[]>([]);
   const [loadingCases, setLoadingCases] = useState(false);
+  const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused">("idle");
+
+  // Patient Profile Modal state (Stored in single table 'user_data')
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileData, setProfileData] = useState<UserProfileData>({
+    displayName: "",
+    email: "",
+    phone: "",
+    dob: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    bloodGroup: "",
+    preferredLanguage: "en",
+    updatedAt: ""
+  });
+  const [profileActivities, setProfileActivities] = useState<any[]>([]);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
+  const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,9 +305,36 @@ function HomeContent() {
       .then(setHealth)
       .catch((e: Error) => setError(e.message));
 
-    getMe()
-      .then(setCurrentUser)
-      .catch(() => setCurrentUser(null));
+    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const token = await firebaseUser.getIdToken();
+          if (typeof window !== "undefined") {
+            localStorage.setItem("carelynx_auth_token", token);
+          }
+        } catch {
+          // non-blocking
+        }
+        setCurrentUser({
+          id: firebaseUser.uid,
+          email: firebaseUser.email || "patient@carelynx.local",
+          full_name: firebaseUser.displayName || null,
+          role: "patient",
+          created_at: firebaseUser.metadata?.creationTime || new Date().toISOString()
+        });
+      } else {
+        getMe()
+          .then(setCurrentUser)
+          .catch(() => setCurrentUser(null));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, []);
 
   const handledActionRef = useRef<string | null>(null);
@@ -77,11 +345,31 @@ function HomeContent() {
     setAuthLoading(true);
     try {
       if (authMode === "register") {
-        const res = await registerUser(authEmail, authPassword, authName || undefined);
-        setCurrentUser(res.user);
+        const fbUser = await registerWithFirebase(authEmail, authPassword, authName || undefined);
+        const token = await fbUser.getIdToken();
+        if (typeof window !== "undefined") {
+          localStorage.setItem("carelynx_auth_token", token);
+        }
+        setCurrentUser({
+          id: fbUser.uid,
+          email: fbUser.email || authEmail,
+          full_name: authName || fbUser.displayName || null,
+          role: "patient",
+          created_at: new Date().toISOString()
+        });
       } else {
-        const res = await loginUser(authEmail, authPassword);
-        setCurrentUser(res.user);
+        const fbUser = await loginWithFirebase(authEmail, authPassword);
+        const token = await fbUser.getIdToken();
+        if (typeof window !== "undefined") {
+          localStorage.setItem("carelynx_auth_token", token);
+        }
+        setCurrentUser({
+          id: fbUser.uid,
+          email: fbUser.email || authEmail,
+          full_name: fbUser.displayName || null,
+          role: "patient",
+          created_at: new Date().toISOString()
+        });
       }
       setShowAuthModal(false);
       setAuthPassword("");
@@ -92,11 +380,93 @@ function HomeContent() {
     }
   };
 
-  const handleLogout = () => {
+  const handleGoogleSignIn = async () => {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const fbUser = await loginWithGoogle();
+      const token = await fbUser.getIdToken();
+      if (typeof window !== "undefined") {
+        localStorage.setItem("carelynx_auth_token", token);
+      }
+      setCurrentUser({
+        id: fbUser.uid,
+        email: fbUser.email || "",
+        full_name: fbUser.displayName || null,
+        role: "patient",
+        created_at: new Date().toISOString()
+      });
+      setShowAuthModal(false);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Google Sign-In failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutFirebase();
+    } catch {
+      // ignore
+    }
     logoutUser();
     setCurrentUser(null);
     setUserCases([]);
     setShowHistoryDrawer(false);
+  };
+
+  const handleOpenProfile = async () => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+    setShowProfileModal(true);
+    setProfileLoading(true);
+    setProfileSuccessMsg(null);
+    setProfileErrorMsg(null);
+    try {
+      const master = await getMasterUserData(currentUser.id);
+      setProfileData({
+        displayName: master.profile?.displayName || currentUser.full_name || "",
+        email: master.profile?.email || currentUser.email || "",
+        phone: master.profile?.phone || "",
+        dob: master.profile?.dob || "",
+        emergencyContactName: master.profile?.emergencyContactName || "",
+        emergencyContactPhone: master.profile?.emergencyContactPhone || "",
+        bloodGroup: master.profile?.bloodGroup || "Unknown",
+        preferredLanguage: master.profile?.preferredLanguage || language || "en",
+        updatedAt: master.profile?.updatedAt || ""
+      });
+      setProfileActivities(master.activities || []);
+    } catch (err) {
+      console.warn("Could not load profile from Firestore:", err);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    setProfileSaving(true);
+    setProfileSuccessMsg(null);
+    setProfileErrorMsg(null);
+    try {
+      const saved = await saveUserProfileToFirestore(currentUser.id, profileData);
+      setProfileData(saved);
+      setCurrentUser(prev => prev ? { ...prev, full_name: saved.displayName } : null);
+      if (saved.preferredLanguage && saved.preferredLanguage !== language) {
+        handleLanguageChange(saved.preferredLanguage as Lang);
+      }
+      setProfileSuccessMsg("Profile details saved successfully to Firestore single table ('user_data').");
+      const updatedMaster = await getMasterUserData(currentUser.id);
+      setProfileActivities(updatedMaster.activities || []);
+    } catch (err) {
+      setProfileErrorMsg(err instanceof Error ? err.message : "Failed to save profile details");
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleOpenHistory = async () => {
@@ -107,10 +477,53 @@ function HomeContent() {
     setShowHistoryDrawer(true);
     setLoadingCases(true);
     try {
-      const cases = await getUserCases();
-      setUserCases(cases);
+      // 1. Fetch case memories strictly for this user from Cloud Firestore single table
+      const firestoreRecords = await getUserCasesFromFirestore(currentUser.id);
+      const userCaseIdSet = new Set(firestoreRecords.map(f => f.case_id));
+
+      // 2. Fetch backend local cases ONLY if they belong to this user
+      let backendCases: CaseOut[] = [];
+      try {
+        const allBackendCases = await getUserCases();
+        backendCases = allBackendCases.filter(b => userCaseIdSet.has(b.id));
+      } catch (e) {
+        console.warn("Backend cases fetch fallback:", e);
+      }
+
+      // 3. Build strictly isolated list of cases for this user only
+      const backendMap = new Map<string, CaseOut>(backendCases.map(b => [b.id, b]));
+      const isolatedCases: CaseOut[] = firestoreRecords.map(f => {
+        const existingBackend = backendMap.get(f.case_id);
+        if (existingBackend) {
+          return {
+            ...existingBackend,
+            created_at: f.created_at || existingBackend.created_at,
+          };
+        }
+        return {
+          id: f.case_id,
+          status: f.status,
+          created_at: f.created_at,
+          documents: [{
+            id: f.case_id,
+            filename: f.filename,
+            processing_status: f.status,
+          }],
+          counts: {
+            verified: f.facts_count?.total || 0,
+            needs_review: 0,
+            human_required: 0,
+            conflict_detected: 0,
+            rejected: 0,
+            open_reviews: 0
+          }
+        };
+      });
+
+      setUserCases(isolatedCases);
+      logUserActivity(currentUser.id, "VIEWED_HISTORY", "Viewed personal case history", { case_count: isolatedCases.length });
     } catch (err) {
-      console.error("Failed to load user cases:", err);
+      console.error("Failed to load user cases from Firestore:", err);
     } finally {
       setLoadingCases(false);
     }
@@ -123,6 +536,21 @@ function HomeContent() {
       const [fullCase, caseFacts] = await Promise.all([getCase(c.id), getCaseFacts(c.id)]);
       setActiveCase(fullCase);
       setFacts(caseFacts);
+
+      const openAlertCount = caseFacts.filter(
+        item => item.status === "NEEDS_REVIEW" || 
+                item.status === "CONFLICT_DETECTED" || 
+                item.status === "HUMAN_REQUIRED"
+      ).length;
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("carelynx_recent_case_id", c.id);
+        if (currentUser) {
+          localStorage.setItem(`carelynx_recent_case_${currentUser.id}`, c.id);
+        }
+        window.dispatchEvent(new CustomEvent("carelynx:active-alerts", { detail: { count: openAlertCount } }));
+      }
+
       setTimeout(() => {
         const el = document.getElementById("care-plan");
         if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -151,6 +579,47 @@ function HomeContent() {
       setFacts(f);
       setIsProcessing(false);
 
+      const openAlertCount = f.filter(
+        item => item.status === "NEEDS_REVIEW" || 
+                item.status === "CONFLICT_DETECTED" || 
+                item.status === "HUMAN_REQUIRED"
+      ).length;
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("carelynx_recent_case_id", caseId);
+        if (currentUser) {
+          localStorage.setItem(`carelynx_recent_case_${currentUser.id}`, caseId);
+        }
+        window.dispatchEvent(new CustomEvent("carelynx:active-alerts", { detail: { count: openAlertCount } }));
+      }
+
+      if (currentUser) {
+        try {
+          await saveUserCaseToFirestore(currentUser.id, {
+            caseId,
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            filename: file.name,
+            status: "PROCESSED",
+            documentCount: 1,
+            factsCount: {
+              total: f.length,
+              medications: f.filter(item => item.fact_type === "medication").length,
+              appointments: f.filter(item => item.fact_type === "follow_up").length,
+              warnings: f.filter(item => item.fact_type === "warning_sign").length,
+              instructions: f.filter(item => item.fact_type === "instruction" || item.fact_type === "documented_condition").length
+            }
+          });
+          await logUserActivity(
+            currentUser.id,
+            "UPLOADED_PAPERWORK",
+            `Uploaded and extracted discharge document: ${file.name}`,
+            { case_id: caseId, alerts_count: openAlertCount }
+          );
+        } catch (fsErr) {
+          console.warn("Could not sync case memory to Firestore:", fsErr);
+        }
+      }
+
       if (language !== "en") {
         setIsTranslating(true);
         try {
@@ -173,7 +642,7 @@ function HomeContent() {
     } finally {
       setIsUploading(false);
     }
-  }, [language]);
+  }, [language, currentUser]);
 
   // 1-Click Sample Hospital PDF loader
   const handleLoadSample = useCallback(async (
@@ -215,6 +684,13 @@ function HomeContent() {
       if (activeCase) {
         setActiveCase(null);
         setFacts([]);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("carelynx_recent_case_id");
+          if (currentUser) {
+            localStorage.removeItem(`carelynx_recent_case_${currentUser.id}`);
+          }
+          window.dispatchEvent(new CustomEvent("carelynx:active-alerts", { detail: { count: 0 } }));
+        }
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
     };
@@ -255,12 +731,17 @@ function HomeContent() {
       handleOpenHistory();
     };
 
+    const handleProfileEvent = () => {
+      handleOpenProfile();
+    };
+
     window.addEventListener("carelynx:upload", handleUploadEvent);
     window.addEventListener("carelynx:home", handleHomeEvent);
     window.addEventListener("carelynx:features", handleFeaturesEvent);
     window.addEventListener("carelynx:careplan", handleCarePlanEvent);
     window.addEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
     window.addEventListener("carelynx:history", handleHistoryEvent);
+    window.addEventListener("carelynx:profile", handleProfileEvent);
 
     // Check URL params — once per action: this effect re-runs on every case update, and re-running
     // "demo" would upload the sample again in a loop.
@@ -277,6 +758,8 @@ function HomeContent() {
       }
     } else if (action === "history") {
       handleHistoryEvent();
+    } else if (action === "profile") {
+      handleProfileEvent();
     } else if (action === "demo") {
       handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
     } else if (action === "prescriptions") {
@@ -296,8 +779,9 @@ function HomeContent() {
       window.removeEventListener("carelynx:careplan", handleCarePlanEvent);
       window.removeEventListener("carelynx:prescriptions", handlePrescriptionsEvent);
       window.removeEventListener("carelynx:history", handleHistoryEvent);
+      window.removeEventListener("carelynx:profile", handleProfileEvent);
     };
-  }, [activeCase, handleLoadSample, hasSessionUploadConsent, searchParams]);
+  }, [activeCase, handleLoadSample, hasSessionUploadConsent, searchParams, currentUser]);
 
   // Close popup modal on ESC key
   useEffect(() => {
@@ -328,6 +812,16 @@ function HomeContent() {
           setIsProcessing(false);
           const f = await getCaseFacts(c.id);
           setFacts(f);
+
+          const openAlertCount = f.filter(
+            item => item.status === "NEEDS_REVIEW" || 
+                    item.status === "CONFLICT_DETECTED" || 
+                    item.status === "HUMAN_REQUIRED"
+          ).length;
+
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("carelynx:active-alerts", { detail: { count: openAlertCount } }));
+          }
 
           // Auto-translate summary upon completion if a non-English language is active
           if (language !== "en") {
@@ -361,6 +855,11 @@ function HomeContent() {
       return;
     }
     
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setTtsState("idle");
+
     setIsTranslating(true);
     try {
       setTranslations(await translateCase(activeCase.id, targetLang));
@@ -371,6 +870,162 @@ function HomeContent() {
       setIsTranslating(false);
     }
   };
+
+  const handleToggleReadAloud = () => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      alert("Speech synthesis is not supported by your browser.");
+      return;
+    }
+    const synth = window.speechSynthesis;
+
+    if (ttsState === "playing") {
+      synth.pause();
+      setTtsState("paused");
+      return;
+    }
+    if (ttsState === "paused") {
+      synth.resume();
+      setTtsState("playing");
+      return;
+    }
+
+    synth.cancel();
+
+    const bcp47 = SPEECH_LANG[language] || "en-IN";
+    const voices = synth.getVoices();
+    const prefix = bcp47.split("-")[0].toLowerCase();
+
+    // Multi-stage voice detection
+    let voice = voices.find(v => v.lang.replace("_", "-").toLowerCase() === bcp47.toLowerCase());
+    if (!voice) voice = voices.find(v => v.lang.replace("_", "-").toLowerCase().startsWith(prefix));
+    if (!voice) {
+      const langNames: Record<string, string> = { en: "english", hi: "hindi", gu: "gujarati", mr: "marathi", ta: "tamil", te: "telugu" };
+      const keyword = langNames[language];
+      if (keyword) voice = voices.find(v => v.name.toLowerCase().includes(keyword));
+    }
+    if (!voice && language !== "en") {
+      // Graceful fallback to Indian locale or system voice
+      voice = voices.find(v => v.lang.toLowerCase().includes("in")) || voices[0];
+    }
+
+    const intro = READ_ALOUD_INTRO[language] || READ_ALOUD_INTRO.en;
+    // CRITICAL: Read ALL points extracted from paperwork (not just VERIFIED)
+    const allClinicalFacts = facts.filter(f => f.status !== "REJECTED");
+    if (allClinicalFacts.length === 0) {
+      alert("No discharge points available to read.");
+      return;
+    }
+
+    const sectionsText: string[] = [intro];
+
+    // 1. Emergency Warning Signs & Red Flags
+    const wFacts = allClinicalFacts.filter(f => f.fact_type === "warning_sign");
+    if (wFacts.length > 0) {
+      const wItems = wFacts.map(f => {
+        const tr = translations[f.id];
+        const val = f.value || {};
+        const title = tr?.title || val.text || getFactTitle(f);
+        const meaning = tr?.subtitle || val.simplified_meaning || val.meaning;
+        return meaning ? `${title}. ${meaning}` : `${title}`;
+      }).join(". ");
+      sectionsText.push(`${UI_I18N[language]?.warnings_title || "Emergency Warning Signs"}: ${wItems}`);
+    }
+
+    // 2. Follow-Up Appointments
+    const apptFacts = allClinicalFacts.filter(f => f.fact_type === "follow_up");
+    if (apptFacts.length > 0) {
+      const apptItems = apptFacts.map(f => {
+        const tr = translations[f.id];
+        const val = f.value || {};
+        const title = tr?.title || getFactTitle(f);
+        const date = tr?.date || val.date;
+        const meaning = tr?.subtitle || val.simplified_meaning;
+        let line = title;
+        if (date) line += ` on ${date}`;
+        if (meaning) line += `. ${meaning}`;
+        return line;
+      }).join(". ");
+      sectionsText.push(`${UI_I18N[language]?.appointments_title || "Follow-up Appointments"}: ${apptItems}`);
+    }
+
+    // 3. Prescribed Medications
+    const medFacts = allClinicalFacts.filter(f => f.fact_type === "medication");
+    if (medFacts.length > 0) {
+      const medItems = medFacts.map(f => {
+        const tr = translations[f.id];
+        const val = f.value || {};
+        const name = String(tr?.title || val.name || getFactTitle(f));
+        const strength = val.strength ? String(val.strength) : "";
+        const freq = tr?.subtitle || (val.frequency ? String(val.frequency) : "");
+        const meaning = val.simplified_meaning ? String(val.simplified_meaning) : "";
+        let line = name;
+        if (strength) line += ` ${strength}`;
+        if (freq) line += `, ${freq}`;
+        if (meaning) line += `. ${meaning}`;
+        return line;
+      }).join(". ");
+      sectionsText.push(`${UI_I18N[language]?.medications_title || "Prescribed Medications"}: ${medItems}`);
+    }
+
+    // 4. Care Instructions & Documented Conditions
+    const instFacts = allClinicalFacts.filter(f => f.fact_type === "instruction" || f.fact_type === "documented_condition");
+    if (instFacts.length > 0) {
+      const instItems = instFacts.map(f => {
+        const tr = translations[f.id];
+        const val = f.value || {};
+        const title = tr?.title || val.text || val.raw_text || getFactTitle(f);
+        const meaning = tr?.subtitle || val.simplified_meaning;
+        return meaning ? `${title}. ${meaning}` : `${title}`;
+      }).join(". ");
+      sectionsText.push(`${UI_I18N[language]?.instructions_title || "Care Instructions"}: ${instItems}`);
+    }
+
+    // 5. Documented Allergies
+    const allergyFacts = allClinicalFacts.filter(f => f.fact_type === "allergy");
+    if (allergyFacts.length > 0) {
+      const allergyItems = allergyFacts.map(f => {
+        const val = f.value || {};
+        if (val.no_known_allergies) return "No known drug allergies";
+        return `Allergic to ${val.substance || "unspecified substance"}`;
+      }).join(". ");
+      sectionsText.push(`${UI_I18N[language]?.allergies_title || "Documented Allergies"}: ${allergyItems}`);
+    }
+
+    // 6. Hospital Encounter Dates
+    const dateFacts = allClinicalFacts.filter(f => f.fact_type === "encounter_date");
+    if (dateFacts.length > 0) {
+      const dateItems = dateFacts.map(f => {
+        const val = f.value || {};
+        const kind = val.kind === "admission" ? "Hospital Admission" : val.kind === "discharge" ? "Hospital Discharge" : "Encounter";
+        return `${kind} on ${val.date || val.raw_text}`;
+      }).join(". ");
+      sectionsText.push(`${UI_I18N[language]?.dates_title || "Hospital Stay Dates"}: ${dateItems}`);
+    }
+
+    const speechText = sectionsText.join(". ");
+    const speech = new SpeechSynthesisUtterance(speechText);
+    speech.lang = bcp47;
+    if (voice) {
+      speech.voice = voice;
+    }
+    speech.rate = 0.95;
+
+    speech.onend = () => setTtsState("idle");
+    speech.onerror = () => setTtsState("idle");
+    speech.onpause = () => setTtsState("paused");
+    speech.onresume = () => setTtsState("playing");
+
+    synth.speak(speech);
+    setTtsState("playing");
+  };
+
+  const handleStopReadAloud = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setTtsState("idle");
+  };
+
 
   // Upload custom file with consent gateway check
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -911,47 +1566,68 @@ function HomeContent() {
                 className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-700" />
-                <span>Print Plan</span>
+                <span>{ui.printPlan}</span>
               </button>
 
-              {/* Voice Accessibility (Phase 2) */}
-              <button
-                onClick={() => {
-                  const synth = window.speechSynthesis;
-                  synth.cancel(); // a second click restarts instead of queueing
-                  const bcp47 = SPEECH_LANG[language];
-                  const voice = synth.getVoices().find(v => v.lang.replace("_", "-").toLowerCase().startsWith(bcp47.split("-")[0]));
-                  if (!voice && language !== "en") {
-                    alert(`Your browser has no ${bcp47} voice installed, so it cannot read this language aloud.`);
-                    return;
-                  }
-                  const speech = new SpeechSynthesisUtterance(READ_ALOUD_INTRO[language] + " " + facts.filter(f => f.status === "VERIFIED").map(f => getFactTitle(f)).join(". "));
-                  speech.lang = bcp47;
-                  if (voice) speech.voice = voice;
-                  synth.speak(speech);
-                }}
-                className="px-4 py-2 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
-                title="Read Aloud (Voice Accessibility)"
-              >
-                <span>Read Aloud</span>
-              </button>
+              {/* Voice Accessibility (Audio Player with Play/Pause/Stop) */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleToggleReadAloud}
+                  className={`px-4 py-2 rounded-full border text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    ttsState === "playing"
+                      ? "bg-amber-50 border-amber-300 text-amber-900"
+                      : ttsState === "paused"
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                      : "bg-white hover:bg-slate-50 border-slate-300 text-slate-800"
+                  }`}
+                  title="Read Aloud (Voice Accessibility with Play/Pause)"
+                >
+                  {ttsState === "playing" ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                      <span>{ui.pause}</span>
+                    </>
+                  ) : ttsState === "paused" ? (
+                    <>
+                      <Play className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{ui.resume}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-brand" />
+                      <span>{ui.readAloud}</span>
+                    </>
+                  )}
+                </button>
+                {ttsState !== "idle" && (
+                  <button
+                    onClick={handleStopReadAloud}
+                    className="px-2.5 py-2 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Stop Audio"
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                    <span>{ui.stop}</span>
+                  </button>
+                )}
+              </div>
 
               <button
                 onClick={() => { 
                   setActiveCase(null); 
                   setFacts([]);
+                  handleStopReadAloud();
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 className="px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
               >
-                New Encounter
+                {ui.newEncounter}
               </button>
             </div>
           </div>
 
           {/* Attached Files Strip */}
           <div className="flex items-center gap-3 overflow-x-auto pb-1 no-print">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider shrink-0">Attached Files:</span>
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider shrink-0">{ui.attachedFiles}</span>
             {activeCase.documents.map(doc => (
               <a
                 key={doc.id}
@@ -969,26 +1645,55 @@ function HomeContent() {
             ))}
           </div>
 
-          {/* Red-Flag Conflict Warning Banner (if any) */}
-          {facts.some(f => f.status === "CONFLICT_DETECTED") && (
-            <div className="p-5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs no-print">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                  <ShieldAlert className="w-5 h-5" />
+          {/* Clinical Review & Safety Alerts (with respective Caution Labels & Redirect to /review) */}
+          {facts.some(f => f.status === "CONFLICT_DETECTED" || f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED") && (
+            <div className="p-5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 flex flex-col gap-4 shadow-xs no-print">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-950">{ui.reviewAlertsTitle}</h4>
+                    <p className="text-xs text-amber-800 leading-relaxed mt-0.5 max-w-2xl">
+                      {ui.reviewAlertsDesc}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-rose-900">Clinical Conflict Detected Across Documents</h4>
-                  <p className="text-xs text-rose-700 leading-relaxed mt-0.5">
-                    Your paperwork contains contradictory dates or prescriptions. CARELYNX does not guess which one is correct. These have been flagged for human clinician review.
-                  </p>
-                </div>
+                <a
+                  href={`/review?id=${activeCase.id}`}
+                  className="px-4 py-2 rounded-full bg-amber-900 hover:bg-black text-white text-xs font-bold whitespace-nowrap shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
+                >
+                  <span>{ui.goToReview}</span>
+                </a>
               </div>
-              <a
-                href="/review"
-                className="px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold whitespace-nowrap shadow-xs transition-colors cursor-pointer"
-              >
-                View in Review Queue →
-              </a>
+
+              {/* Individual Caution Badges List with direct links to /review */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/80">
+                {facts
+                  .filter(f => f.status === "CONFLICT_DETECTED" || f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED")
+                  .map(f => {
+                    const isConflict = f.status === "CONFLICT_DETECTED";
+                    return (
+                      <a
+                        key={f.id}
+                        href={`/review?id=${activeCase.id}&focus=${f.id}`}
+                        title="Click to inspect and resolve in Review Queue"
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition shadow-2xs ${
+                          isConflict 
+                            ? "bg-rose-100 hover:bg-rose-200 text-rose-900 border-rose-300" 
+                            : "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300"
+                        }`}
+                      >
+                        <span className="font-bold">
+                          {isConflict ? `[${ui.cautionConflict}]` : `[${ui.cautionMissingEvidence}]`}
+                        </span>
+                        <span className="truncate max-w-[200px]">{getFactTitle(f)}</span>
+                        <ExternalLink className="w-3 h-3 opacity-70 ml-0.5" />
+                      </a>
+                    );
+                  })}
+              </div>
             </div>
           )}
 
@@ -1009,15 +1714,19 @@ function HomeContent() {
                       <AlertTriangle className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-base text-rose-950">Emergency Warning Signs & Red Flags</h3>
-                      <p className="text-xs text-rose-700">Seek immediate medical care if you experience any of the following</p>
+                      <h3 className="font-bold text-base text-rose-950">{ui.emergencyWarnings}</h3>
+                      <p className="text-xs text-rose-700">{ui.emergencySub}</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {warnings.map(f => {
-                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
-                      const simplified = String(val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const val = f.value || {};
+                      const tr = language !== "en" ? translations[f.id] : undefined;
+                      const title = String(tr?.title || val.description || val.sign || val.name || getFactTitle(f));
+                      const simplified = String(tr?.simplified_meaning || val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const isConflict = f.status === "CONFLICT_DETECTED";
+                      const isMissingEvidence = f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED";
                       return (
                         <div 
                           key={f.id} 
@@ -1027,7 +1736,7 @@ function HomeContent() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
                               <p className="text-xs font-semibold text-rose-900 leading-relaxed">
-                                {getFactTitle(f)}
+                                {title}
                               </p>
                               {Boolean(simplified) && (
                                 <p className="text-[11px] text-rose-800 bg-rose-50/90 px-2.5 py-1.5 rounded-xl mt-2 border border-rose-100 flex items-start gap-1.5 leading-snug">
@@ -1038,9 +1747,33 @@ function HomeContent() {
                             </div>
                             <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-rose-600 pt-2 border-t border-rose-100">
-                            <StatusBadge status={f.status} lang={language} />
-                            <span className="font-semibold underline decoration-rose-300">View Source Proof →</span>
+                          <div className="flex items-center justify-between text-[11px] text-rose-600 pt-2 border-t border-rose-100 flex-wrap gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <StatusBadge status={f.status} lang={language} />
+                              {isConflict && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 transition"
+                                  title="Click to resolve this conflict in the Review Queue"
+                                >
+                                  <span>[{ui.cautionConflict}]</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                              {isMissingEvidence && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
+                                  title="Click to review missing evidence in the Review Queue"
+                                >
+                                  <span>[{ui.cautionMissingEvidence}]</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                            <span className="font-semibold underline decoration-rose-300">{ui.viewSourceProof}</span>
                           </div>
                         </div>
                       );
@@ -1056,24 +1789,29 @@ function HomeContent() {
                     <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
                       <Calendar className="w-4 h-4" />
                     </div>
-                    <h3 className="font-bold text-base text-slate-900">Follow-up Appointments</h3>
+                    <h3 className="font-bold text-base text-slate-900">{ui.followups}</h3>
                   </div>
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">{appointments.length} scheduled</span>
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">{appointments.length}</span>
                 </div>
 
                 {appointments.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-4">No follow-up dates extracted from uploaded pages.</p>
+                  <p className="text-xs text-slate-500 py-4">{ui.followupsEmpty}</p>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {appointments.map(f => {
-                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
-                      const simplified = val.simplified_meaning || val.meaning || val.explanation;
+                      const val = f.value || {};
+                      const tr = language !== "en" ? translations[f.id] : undefined;
+                      const title = String(tr?.title || val.doctor || val.department || val.timing || getFactTitle(f));
+                      const subtitle = String(tr?.subtitle || val.date || val.timing || "Clinical Follow-up Visit");
+                      const simplified = String(tr?.simplified_meaning || val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const isConflict = f.status === "CONFLICT_DETECTED";
+                      const isMissingEvidence = f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED";
                       return (
                         <div 
                           key={f.id} 
                           onClick={() => viewEvidence(f)}
                           className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
-                            f.status === "CONFLICT_DETECTED" 
+                            isConflict 
                               ? "bg-rose-50 border-rose-300 hover:bg-rose-100/50" 
                               : "bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
                           }`}
@@ -1084,23 +1822,44 @@ function HomeContent() {
                             </div>
                             <div className="flex-1">
                               <span className="text-xs font-bold text-slate-900 block">
-                                {getFactTitle(f)}
+                                {title}
                               </span>
-                              {simplified ? (
+                              <span className="text-[11px] text-slate-500 block mt-0.5">
+                                {subtitle}
+                              </span>
+                              {Boolean(simplified) && (
                                 <span className="text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 border border-purple-100">
                                   <Sparkles className="w-2.5 h-2.5 text-purple-500 shrink-0" />
-                                  {String(simplified)}
-                                </span>
-                              ) : (
-                                <span className="text-[11px] text-slate-500 block mt-0.5">
-                                  Clinical Follow-up Visit
+                                  {simplified}
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <StatusBadge status={f.status} lang={language} />
+                            {isConflict && (
+                              <a
+                                href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 transition"
+                                title="Click to resolve this conflict in the Review Queue"
+                              >
+                                <span>[{ui.cautionConflict}]</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                            {isMissingEvidence && (
+                              <a
+                                href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
+                                title="Click to review missing evidence in the Review Queue"
+                              >
+                                <span>[{ui.cautionMissingEvidence}]</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                           </div>
                         </div>
@@ -1117,42 +1876,68 @@ function HomeContent() {
                     <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
                       <Pill className="w-4 h-4" />
                     </div>
-                    <h3 className="font-bold text-base text-slate-900">Prescribed Medications</h3>
+                    <h3 className="font-bold text-base text-slate-900">{ui.prescriptions}</h3>
                   </div>
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">{medications.length} active</span>
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">{medications.length}</span>
                 </div>
 
                 {medications.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-4">No discharge prescriptions identified.</p>
+                  <p className="text-xs text-slate-500 py-4">{ui.prescriptionsEmpty}</p>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {medications.map(f => {
-                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
+                      const val = f.value || {};
                       const tr = language !== "en" ? translations[f.id] : undefined;
-                      const simplified = String(val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const name = String(tr?.title || val.name || getFactTitle(f));
+                      const subtitle = tr?.subtitle || (val.frequency ? `${ui.instructionsLabel} ${String(val.frequency)}` : "");
+                      const simplified = String(tr?.simplified_meaning || val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const isConflict = f.status === "CONFLICT_DETECTED";
+                      const isMissingEvidence = f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED";
                       return (
                         <div 
                           key={f.id} 
                           onClick={() => viewEvidence(f)}
                           className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 group ${
-                            f.status === "CONFLICT_DETECTED" 
+                            isConflict 
                               ? "bg-rose-50 border-rose-300 hover:bg-rose-100/50" 
                               : "bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
                           }`}
                         >
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
                             <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                               <Pill className="w-3.5 h-3.5 text-brand" />
-                              {String(val.name || getFactTitle(f))}
+                              {name}
                             </span>
-                            <span className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {Boolean(val.strength) && (
                                 <span className="text-[11px] font-mono font-semibold text-emerald-800 px-2.5 py-0.5 rounded-full bg-emerald-100">
                                   {String(val.strength)}
                                 </span>
                               )}
                               <StatusBadge status={f.status} lang={language} />
-                            </span>
+                              {isConflict && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 transition"
+                                  title="Click to resolve this conflict in the Review Queue"
+                                >
+                                  <span>[{ui.cautionConflict}]</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                              {isMissingEvidence && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
+                                  title="Click to review missing evidence in the Review Queue"
+                                >
+                                  <span>[{ui.cautionMissingEvidence}]</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
                           </div>
 
                           {Boolean(simplified) && (
@@ -1163,8 +1948,8 @@ function HomeContent() {
                           )}
 
                           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                            <span>{tr?.subtitle || (val.frequency ? `Instructions: ${String(val.frequency)}` : "")}</span>
-                            <span className="font-semibold text-brand underline decoration-emerald-200 group-hover:decoration-brand">Proof →</span>
+                            <span>{subtitle}</span>
+                            <span className="font-semibold text-brand underline decoration-emerald-200 group-hover:decoration-brand">{ui.viewSourceProof}</span>
                           </div>
                         </div>
                       );
@@ -1180,18 +1965,22 @@ function HomeContent() {
                     <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
                       <Activity className="w-4 h-4" />
                     </div>
-                    <h3 className="font-bold text-base text-slate-900">Home Care & Daily Instructions</h3>
+                    <h3 className="font-bold text-base text-slate-900">{ui.homeCare}</h3>
                   </div>
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">{instructions.length} guidelines</span>
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">{instructions.length}</span>
                 </div>
 
                 {instructions.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-4">No specific home instructions extracted.</p>
+                  <p className="text-xs text-slate-500 py-4">{ui.homeCareEmpty}</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {instructions.map(f => {
-                      const val = (language === "en" || !translations[f.id] ? f.value : translations[f.id]) || {};
-                      const simplified = String(val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const val = f.value || {};
+                      const tr = language !== "en" ? translations[f.id] : undefined;
+                      const title = String(tr?.title || val.instruction || val.text || val.guideline || getFactTitle(f));
+                      const simplified = String(tr?.simplified_meaning || val.simplified_meaning || val.meaning || val.explanation || "").trim();
+                      const isConflict = f.status === "CONFLICT_DETECTED";
+                      const isMissingEvidence = f.status === "NEEDS_REVIEW" || f.status === "HUMAN_REQUIRED";
                       return (
                         <div 
                           key={f.id} 
@@ -1201,7 +1990,7 @@ function HomeContent() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
                               <p className="text-xs font-medium text-slate-800 leading-relaxed">
-                                {getFactTitle(f)}
+                                {title}
                               </p>
                               {Boolean(simplified) && (
                                 <p className="text-[11px] text-teal-800 bg-teal-50/80 p-2 rounded-xl mt-2 border border-teal-100 flex items-start gap-1.5 leading-snug">
@@ -1212,9 +2001,33 @@ function HomeContent() {
                             </div>
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-                            <StatusBadge status={f.status} lang={language} />
-                            <span className="font-semibold text-brand underline decoration-emerald-200">View Proof →</span>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 flex-wrap gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <StatusBadge status={f.status} lang={language} />
+                              {isConflict && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200 transition"
+                                  title="Click to resolve this conflict in the Review Queue"
+                                >
+                                  <span>[{ui.cautionConflict}]</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                              {isMissingEvidence && (
+                                <a
+                                  href={`/review?id=${activeCase?.id || ""}&focus=${f.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 transition"
+                                  title="Click to review missing evidence in the Review Queue"
+                                >
+                                  <span>[{ui.cautionMissingEvidence}]</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                            <span className="font-semibold text-brand underline decoration-emerald-200">{ui.viewSourceProof}</span>
                           </div>
                         </div>
                       );
@@ -1567,6 +2380,30 @@ function HomeContent() {
                 {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                 <span>{authMode === "login" ? "Sign In" : "Create Account"}</span>
               </button>
+
+              <div className="relative my-3">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white px-3 text-slate-400 font-semibold uppercase tracking-wider">or</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={authLoading}
+                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-xs transition flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                <span>Continue with Google</span>
+              </button>
             </form>
 
             <div className="mt-5 text-center text-xs text-slate-500">
@@ -1687,6 +2524,229 @@ function HomeContent() {
           </div>
         </div>
       )}
+
+      {/* Patient Profile Modal (Stored in single table 'user_data') */}
+      {showProfileModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 font-bold">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-lg leading-tight">Patient Profile Details</h3>
+                  <p className="text-xs text-slate-500">Securely stored in Firestore single table (`user_data`)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close profile modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Form Content */}
+            <div className="flex-1 overflow-y-auto py-5 space-y-5 custom-scrollbar pr-1">
+              {profileLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
+                  <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
+                  <span className="text-xs">Loading profile from Firestore single table...</span>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveProfile} id="profile-edit-form" className="space-y-4">
+                  {profileSuccessMsg && (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">{profileSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {profileErrorMsg && (
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="font-semibold">{profileErrorMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Full Legal Name
+                      </label>
+                      <input
+                        type="text"
+                        value={profileData.displayName}
+                        onChange={e => setProfileData(prev => ({ ...prev, displayName: e.target.value }))}
+                        placeholder="e.g. John Doe"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Account Email
+                      </label>
+                      <input
+                        type="email"
+                        value={profileData.email}
+                        disabled
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Contact Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={profileData.phone || ""}
+                        onChange={e => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder="e.g. +91 98765 43210"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Date of Birth
+                      </label>
+                      <input
+                        type="date"
+                        value={profileData.dob || ""}
+                        onChange={e => setProfileData(prev => ({ ...prev, dob: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Emergency Contact Person
+                      </label>
+                      <input
+                        type="text"
+                        value={profileData.emergencyContactName || ""}
+                        onChange={e => setProfileData(prev => ({ ...prev, emergencyContactName: e.target.value }))}
+                        placeholder="e.g. Jane Doe (Spouse)"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Emergency Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={profileData.emergencyContactPhone || ""}
+                        onChange={e => setProfileData(prev => ({ ...prev, emergencyContactPhone: e.target.value }))}
+                        placeholder="e.g. +91 98765 43211"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Blood Group
+                      </label>
+                      <select
+                        value={profileData.bloodGroup || "Unknown"}
+                        onChange={e => setProfileData(prev => ({ ...prev, bloodGroup: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="Unknown">Unknown / Not Tested</option>
+                        <option value="A+">A Positive (A+)</option>
+                        <option value="A-">A Negative (A-)</option>
+                        <option value="B+">B Positive (B+)</option>
+                        <option value="B-">B Negative (B-)</option>
+                        <option value="AB+">AB Positive (AB+)</option>
+                        <option value="AB-">AB Negative (AB-)</option>
+                        <option value="O+">O Positive (O+)</option>
+                        <option value="O-">O Negative (O-)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Preferred Language
+                      </label>
+                      <select
+                        value={profileData.preferredLanguage || "en"}
+                        onChange={e => setProfileData(prev => ({ ...prev, preferredLanguage: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="en">English</option>
+                        <option value="hi">हिंदी (Hindi)</option>
+                        <option value="gu">ગુજરાતી (Gujarati)</option>
+                        <option value="mr">मराठी (Marathi)</option>
+                        <option value="ta">தமிழ் (Tamil)</option>
+                        <option value="te">తెలుగు (Telugu)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Activity log preview from single table */}
+                  {profileActivities.length > 0 && (
+                    <div className="pt-4 border-t border-slate-100">
+                      <span className="text-xs font-bold text-slate-700 block mb-2">
+                        Recent User Activities (Firestore Single Table)
+                      </span>
+                      <div className="max-h-32 overflow-y-auto divide-y divide-slate-100 bg-slate-50 rounded-xl p-2.5 border border-slate-200 text-[11px]">
+                        {profileActivities.slice(0, 5).map((act: any, idx: number) => (
+                          <div key={act.id || idx} className="py-1.5 flex items-center justify-between">
+                            <span className="font-semibold text-slate-800">{act.description || act.action}</span>
+                            <span className="text-slate-400 font-mono text-[10px]">
+                              {act.timestamp ? new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </form>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs sm:text-sm font-semibold transition cursor-pointer"
+              >
+                Close
+              </button>
+
+              <button
+                type="submit"
+                form="profile-edit-form"
+                disabled={profileSaving || profileLoading}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-sm"
+              >
+                {profileSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving to Firestore...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Save Profile Details</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1702,8 +2762,6 @@ export default function Home() {
     </Suspense>
   );
 }
-
-type Lang = "en" | "hi" | "gu" | "mr" | "ta" | "te";
 
 // Status wording must never read as more certain than the backend status (SAFETY.md §5).
 const STATUS_LABELS: Record<string, Record<Lang, string>> = {
