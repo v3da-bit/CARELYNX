@@ -17,8 +17,8 @@ export default function Footer() {
   };
 
   return (
-    <footer className="border-t border-slate-200/80 bg-white/80 backdrop-blur-md text-slate-700 text-xs py-12 no-print mt-auto">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col gap-10">
+    <footer className="w-full px-3 sm:px-6 lg:px-8 pb-6 pt-2 no-print mt-auto">
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-xs flex flex-col gap-10 w-full max-w-[1720px] mx-auto text-slate-700 text-xs">
         
         {/* Top Tier: Company Info & Core Clinical Mandate */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 border-b border-slate-200/70 pb-8">
