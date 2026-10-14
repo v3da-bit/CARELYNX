@@ -11,6 +11,24 @@
 ## Task Commit History
 
 ```text
+commit c29bf11
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-14 23:13:30 +0530
+
+    refactor(web): remove Continue with Google sign-in button from auth modal
+
+    - Context / Problem addressed:
+      User requested removal of the "Continue with Google" button and divider
+      from the authentication modal in `apps/web/app/page.tsx`.
+    - Architectural decisions & changes made:
+      1. Removed the "or" divider and "Continue with Google" button from the
+         auth modal JSX in `apps/web/app/page.tsx`.
+      2. Removed the `handleGoogleSignIn` handler.
+      3. Cleaned up the unused `loginWithGoogle` import from `@/lib/firebase`.
+    - Verification:
+      - `npm run lint` passed with 0 errors and 0 warnings.
+      - `npx tsc --noEmit` passed cleanly.
+
 commit e189a24
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-14 23:12:00 +0530
