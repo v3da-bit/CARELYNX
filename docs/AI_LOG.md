@@ -11,6 +11,30 @@
 ## Task Commit History
 
 ```text
+commit f3a8d90
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-14 23:17:40 +0530
+
+    ci(deploy): add verify_deployment.sh and validate production deployment bundle
+
+    - Context / Problem addressed:
+      User requested verification that all deployment files, configuration,
+      and documentation in `docs/DEPLOYMENT.md` are completed and functional.
+    - Architectural decisions & changes made:
+      1. Created `scripts/verify_deployment.sh` — automated pre-flight script that
+         validates all 6 deployment configuration files, verifies Alembic schema
+         synchronization, executes ESLint across the frontend, and runs a full
+         Next.js production build (`next build`).
+      2. Validated all deployment files:
+         - `docs/DEPLOYMENT.md` (complete 6-part guide)
+         - `apps/api/railway.json` (Nixpacks build & startup command)
+         - `apps/api/nixpacks.toml` (Python 3.13 + Tesseract OCR system package)
+         - `apps/api/.env.railway.example` (documented env vars)
+         - `apps/web/vercel.json` (security headers & API proxy rewrite)
+         - `apps/web/.env.production.example` (Vercel env vars)
+    - Verification:
+      - `./scripts/verify_deployment.sh` executed and passed 4/4 stages with exit code 0.
+
 commit c29bf11
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-14 23:13:30 +0530
