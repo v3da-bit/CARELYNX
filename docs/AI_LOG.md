@@ -13,6 +13,35 @@
 ```text
 commit (uncommitted — branch Meet)
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-14 22:40:00 +0530
+
+    fix(database): add migration 0002 for users table and cases.user_id column
+
+    - Context / Problem addressed:
+      FastAPI server raised `sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) table cases has no column named user_id`
+      when inserting into the `cases` table during `doc_service.create_case`. When user isolation and authentication
+      were added in previous commits, `user_id` was added to `Case` model in `entities.py`, but Alembic migration
+      `0002` had not been authored or applied to the local SQLite database.
+    - Architectural decisions & changes made:
+      1. Created Alembic revision `0002_add_users_and_case_user_id.py` defining:
+         - `users` table creation (if not already present) with UUID primary key, unique email index, role, and timestamps.
+         - Batch alteration on `cases` table to add nullable `user_id` foreign key referencing `users.id` with `ondelete='SET NULL'` and index `ix_cases_user_id`.
+      2. Applied migration via `.venv/bin/alembic upgrade head`.
+      3. Updated `docs/DATABASE.md` to document the `users` table specification (§2.0) and `cases.user_id` foreign key index.
+    - Files created / modified:
+      - apps/api/alembic/versions/0002_add_users_and_case_user_id.py (created)
+      - docs/DATABASE.md (modified)
+      - docs/AI_LOG.md (modified)
+    - Verification & testing performed:
+      - Ran `alembic upgrade head` successfully: `Running upgrade 0001 -> 0002, add_users_and_case_user_id`.
+      - Verified SQLite schema via `PRAGMA table_info(cases)` to confirm presence of `user_id`.
+      - Ran direct Python execution creating cases both with and without `user_id` successfully.
+
+```
+
+```text
+commit (uncommitted — branch Meet)
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-14 21:41:00 +0530
 
     fix(firebase): handle Firestore security rules permission-denied gracefully, add local memory cache fallback, and create firestore.rules

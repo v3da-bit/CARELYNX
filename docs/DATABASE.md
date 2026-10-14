@@ -24,6 +24,25 @@
 
 ## 2. Table Specifications
 
+### 2.0 `users`
+Stores authenticated users (patients, clinical reviewers, administrators) for tenant isolation and authentication.
+
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'patient',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE UNIQUE INDEX ix_users_email ON users(email);
+```
+
+---
+
 ### 2.1 `patients`
 Stores patient profiles and preferred communication language.
 
@@ -46,11 +65,13 @@ Encounter container grouping all documents, extracted facts, and review items fo
 CREATE TABLE cases (
     id UUID PRIMARY KEY,
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,  -- a patient row is created with every case
+    user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'OPEN',  -- OPEN | PROCESSING | READY | NEEDS_REVIEW
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX ix_cases_patient_id ON cases(patient_id);
+CREATE INDEX ix_cases_user_id ON cases(user_id);
 ```
 
 ---
