@@ -11,6 +11,34 @@
 ## Task Commit History
 
 ```text
+commit e189a24
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-14 23:12:00 +0530
+
+    fix(web): resolve all ESLint, TypeScript, and cascading render issues in app/page.tsx
+
+    - Context / Problem addressed:
+      `apps/web/app/page.tsx` contained 11 ESLint and React compiler issues:
+      unused imports (`registerUser`, `loginUser`, `FirestoreCaseRecord`,
+      `SingleTableUserData`, `Download`), unused `health` state, unsafe `any`
+      types on `profileActivities`, synchronous `setState` in useEffect (triggering
+      `react-hooks/set-state-in-effect`), unescaped apostrophe entity, and missing
+      dependencies in useEffect (`handleOpenHistory`, `handleOpenProfile`).
+    - Architectural decisions & changes made:
+      1. Pruned unused imports from `@/lib/api`, `@/lib/firebase`, and `lucide-react`.
+      2. Replaced `any[]` with strongly-typed `UserActivityItem[]` imported from
+         `@/lib/firebase`.
+      3. Wrapped `handleOpenProfile` and `handleOpenHistory` in `useCallback` and
+         added them to the `useEffect` dependency array.
+      4. Deferred URL action handling and modal triggers using `setTimeout` (0ms)
+         to prevent cascading synchronous render warnings.
+      5. Replaced unescaped apostrophe `Don't` with `Don&apos;t`.
+      6. Resolved synchronous state initialization inside `CookieConsent.tsx`.
+    - Verification:
+      - `npx eslint app/page.tsx` passed with 0 errors and 0 warnings.
+      - `npm run lint` across entire web workspace passed with 0 errors.
+      - `npx tsc --noEmit` and `npm run build` passed with 100% clean output.
+
 commit 4699c6b
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-14 23:00:00 +0530

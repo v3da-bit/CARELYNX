@@ -27,18 +27,20 @@ export default function CookieConsent() {
 
   // Load existing preferences on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setPreferences(parsed);
-        setHasDecided(true);
-      } else {
+    setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setPreferences(parsed);
+          setHasDecided(true);
+        } else {
+          setHasDecided(false);
+        }
+      } catch {
         setHasDecided(false);
       }
-    } catch {
-      setHasDecided(false);
-    }
+    }, 0);
   }, []);
 
   // Listen for open preferences event from Footer or Cookie Policy page

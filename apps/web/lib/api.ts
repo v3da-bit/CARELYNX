@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Typed API client. All business logic lives in the API; this module only transports data.
  */

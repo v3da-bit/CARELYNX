@@ -4,19 +4,19 @@ import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { 
   getHealth, createCase, uploadDocument, processDocument, getCase, getCaseFacts, getFactEvidence, translateCase, API_BASE,
-  registerUser, loginUser, logoutUser, getMe, getUserCases,
-  type Health, type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedText, type UserProfile
+  logoutUser, getMe, getUserCases,
+  type CaseOut, type FactResponse, type EvidenceResponse, type TranslatedText, type UserProfile
 } from "@/lib/api";
 import { 
   registerWithFirebase, loginWithFirebase, loginWithGoogle, logoutFirebase,
   onAuthStateChange, saveUserCaseToFirestore, getUserCasesFromFirestore,
   saveUserProfileToFirestore, getMasterUserData, logUserActivity,
-  type FirestoreCaseRecord, type UserProfileData, type SingleTableUserData
+  type UserProfileData, type UserActivityItem
 } from "@/lib/firebase";
 import { 
   FileUp, Loader2, Calendar, Pill, AlertTriangle, FileText, 
   X, Printer, Globe, ShieldAlert, Sparkles, Clock, Stethoscope, HeartHandshake,
-  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Download, Lock,
+  ChevronRight, Activity, AlertCircle, ShieldCheck, PhoneCall, Check, ExternalLink, Lock,
   User, LogOut, Key, Mail, Play, Pause, Square, Volume2, CheckCircle2, Languages
 } from "lucide-react";
 
@@ -236,7 +236,6 @@ export const UI_I18N: Record<Lang, {
 
 function HomeContent() {
   const searchParams = useSearchParams();
-  const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeCase, setActiveCase] = useState<CaseOut | null>(null);
   const [facts, setFacts] = useState<FactResponse[]>([]);
@@ -292,7 +291,7 @@ function HomeContent() {
     preferredLanguage: "en",
     updatedAt: ""
   });
-  const [profileActivities, setProfileActivities] = useState<any[]>([]);
+  const [profileActivities, setProfileActivities] = useState<UserActivityItem[]>([]);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
@@ -305,9 +304,7 @@ function HomeContent() {
   const [mobileTab, setMobileTab] = useState<"all" | "warnings" | "followups" | "meds" | "instructions">("all");
 
   useEffect(() => {
-    getHealth()
-      .then(setHealth)
-      .catch((e: Error) => setError(e.message));
+    getHealth().catch((e: Error) => setError(e.message));
 
     const unsubscribe = onAuthStateChange(async (firebaseUser) => {
       if (firebaseUser) {
@@ -461,7 +458,7 @@ function HomeContent() {
     setConsentPrivacy(false);
   };
 
-  const handleOpenProfile = async () => {
+  const handleOpenProfile = useCallback(async () => {
     if (!currentUser) {
       setShowAuthModal(true);
       return;
@@ -489,7 +486,7 @@ function HomeContent() {
     } finally {
       setProfileLoading(false);
     }
-  };
+  }, [currentUser, language]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -514,7 +511,7 @@ function HomeContent() {
     }
   };
 
-  const handleOpenHistory = async () => {
+  const handleOpenHistory = useCallback(async () => {
     if (!currentUser) {
       setShowAuthModal(true);
       return;
@@ -572,7 +569,7 @@ function HomeContent() {
     } finally {
       setLoadingCases(false);
     }
-  };
+  }, [currentUser]);
 
   const handleSelectHistoryCase = async (c: CaseOut) => {
     try {
@@ -798,28 +795,30 @@ function HomeContent() {
     const action = searchParams.get("action");
     const isNewAction = action !== handledActionRef.current;
     handledActionRef.current = action;
-    if (!isNewAction) {
-      // already handled
-    } else if (action === "upload") {
-      if (hasSessionUploadConsent) {
-        setTimeout(() => fileInputRef.current?.click(), 200);
-      } else {
-        setShowUploadConsentModal(true);
-      }
-    } else if (action === "history") {
-      handleHistoryEvent();
-    } else if (action === "profile") {
-      handleProfileEvent();
-    } else if (action === "demo") {
-      handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
-    } else if (action === "prescriptions") {
-      handlePrescriptionsEvent();
-    } else if (action === "care-plan") {
-      handleCarePlanEvent();
-    } else if (action === "features") {
-      handleFeaturesEvent();
-    } else if (action === "home") {
-      handleHomeEvent();
+    if (isNewAction && action) {
+      setTimeout(() => {
+        if (action === "upload") {
+          if (hasSessionUploadConsent) {
+            fileInputRef.current?.click();
+          } else {
+            setShowUploadConsentModal(true);
+          }
+        } else if (action === "history") {
+          handleHistoryEvent();
+        } else if (action === "profile") {
+          handleProfileEvent();
+        } else if (action === "demo") {
+          handleLoadSample("/sample_medical_record.pdf", "sample_discharge_summary.pdf", "care-plan");
+        } else if (action === "prescriptions") {
+          handlePrescriptionsEvent();
+        } else if (action === "care-plan") {
+          handleCarePlanEvent();
+        } else if (action === "features") {
+          handleFeaturesEvent();
+        } else if (action === "home") {
+          handleHomeEvent();
+        }
+      }, 0);
     }
 
     return () => {
@@ -831,7 +830,7 @@ function HomeContent() {
       window.removeEventListener("carelynx:history", handleHistoryEvent);
       window.removeEventListener("carelynx:profile", handleProfileEvent);
     };
-  }, [activeCase, handleLoadSample, hasSessionUploadConsent, searchParams, currentUser]);
+  }, [activeCase, handleLoadSample, hasSessionUploadConsent, searchParams, currentUser, handleOpenHistory, handleOpenProfile]);
 
   // Close popup modal on ESC key
   useEffect(() => {
@@ -2653,7 +2652,7 @@ function HomeContent() {
             <div className="mt-5 text-center text-xs text-slate-500">
               {authMode === "login" ? (
                 <span>
-                  Don't have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <button
                     type="button"
                     onClick={() => { setAuthMode("register"); setAuthError(null); }}
@@ -2944,7 +2943,7 @@ function HomeContent() {
                         Recent Account Activities
                       </span>
                       <div className="max-h-32 overflow-y-auto divide-y divide-slate-100 bg-slate-50 rounded-xl p-2.5 border border-slate-200 text-[11px]">
-                        {profileActivities.slice(0, 5).map((act: any, idx: number) => (
+                        {profileActivities.slice(0, 5).map((act: UserActivityItem, idx: number) => (
                           <div key={act.id || idx} className="py-1.5 flex items-center justify-between">
                             <span className="font-semibold text-slate-800">{act.description || act.action}</span>
                             <span className="text-slate-400 font-mono text-[10px]">
