@@ -11,6 +11,55 @@
 ## Task Commit History
 
 ```text
+commit 4699c6b
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-14 23:00:00 +0530
+
+    deploy: add Railway + Vercel deployment configuration and guide
+
+    - Context / Problem addressed:
+      User requested a complete production deployment setup for CARELYNX targeting
+      Vercel (Next.js frontend) and Railway (FastAPI backend + PostgreSQL). No
+      deployment files existed in the repository; the app was only runnable locally.
+    - Architectural decisions & changes made:
+      1. Created `apps/api/railway.json` — Railway service config with Nixpacks
+         builder, the correct start command (`alembic upgrade head && uvicorn ...`),
+         and ON_FAILURE restart policy.
+      2. Created `apps/api/nixpacks.toml` — Nixpacks build config that installs
+         `python313` and `tesseract` as Nix packages (required for pytesseract OCR)
+         then runs `pip install -r requirements.txt`.
+      3. Created `apps/web/vercel.json` — Vercel project config targeting Next.js
+         framework, security response headers, and an optional `/api/v1/*` → Railway
+         reverse proxy rewrite rule to eliminate browser CORS issues.
+      4. Created `apps/api/.env.railway.example` — documented template for all
+         Railway environment variables with comments and placeholder instructions
+         (e.g., how to convert `postgresql://` → `postgresql+psycopg://`).
+      5. Created `apps/web/.env.production.example` — minimal Vercel env template
+         (`NEXT_PUBLIC_API_BASE_URL`).
+      6. Created `docs/DEPLOYMENT.md` — comprehensive step-by-step guide covering:
+         Railway backend deployment (6 steps), Vercel frontend deployment (6 steps),
+         optional API proxy rewrite setup, custom domain config, full env var
+         quick-reference table, and troubleshooting for 6 common failure modes.
+    - Files created / modified:
+      apps/api/railway.json (created)
+      apps/api/nixpacks.toml (created)
+      apps/api/.env.railway.example (created)
+      apps/web/vercel.json (created)
+      apps/web/.env.production.example (created)
+      docs/DEPLOYMENT.md (created)
+      docs/AI_LOG.md (modified — this entry)
+    - Verification & testing performed:
+      All 6 files staged and committed (commit 4699c6b) and pushed to
+      origin/main on https://github.com/v3da-bit/CARELYNX.git successfully.
+      Exit code 0, 6 files changed, 405 insertions.
+    - Alignment check:
+      No new frameworks introduced. Deployment config works with the existing
+      FastAPI/Alembic/SQLAlchemy/Next.js stack. Safety invariants unchanged.
+      Consistent with docs/ARCHITECTURE.md topology.
+```
+
+
+```text
 commit (uncommitted — branch Meet)
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-14 22:40:00 +0530
