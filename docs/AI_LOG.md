@@ -11,6 +11,26 @@
 ## Task Commit History
 
 ```text
+commit b892fe4
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 00:08:00 +0530
+
+    fix(deploy): document Railway PostgreSQL host resolution and SQLite fallback
+
+    - Context / Problem addressed:
+      Railway deployment startup failed during `alembic upgrade head` with
+      `psycopg.OperationalError: failed to resolve host 'postgres.railway.internal'`.
+      User had pasted the placeholder internal Postgres URL instead of connecting
+      an actual Railway PostgreSQL service or referencing Railway's variable.
+    - Architectural decisions & changes made:
+      1. Provided instructions to either:
+         a. Connect Railway's Postgres plugin and use `${{Postgres.DATABASE_URL}}`
+            or the actual Connection String from Railway's Postgres service.
+         b. Remove `DATABASE_URL` to enable the built-in SQLite database fallback
+            which requires no external database service.
+    - Verification:
+      - Validated `Settings.resolved_database_url` fallback to SQLite.
+
 commit e49da71
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-15 23:49:00 +0530
