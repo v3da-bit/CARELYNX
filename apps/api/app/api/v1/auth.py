@@ -14,16 +14,32 @@ from app.core.auth import (
     validate_password_strength,
     verify_password,
 )
+from app.core.captcha import generate_captcha_challenge, verify_captcha_solution
+from app.core.config import get_settings
 from app.core.errors import AppError, ErrorCode
+from app.core.sanitizer import sanitize_html_free
 from app.db.session import get_db
 from app.models import User
-from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest, UserOut
+from app.schemas.auth import AuthResponse, CaptchaChallengeOut, LoginRequest, RegisterRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+@router.get("/captcha", response_model=CaptchaChallengeOut)
+def get_captcha() -> CaptchaChallengeOut:
+    """Generates a cryptographic arithmetic challenge for bot defense."""
+    challenge = generate_captcha_challenge()
+    return CaptchaChallengeOut(**challenge)
+
+
 @router.post("/register", response_model=AuthResponse, status_code=201)
 def register(body: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
+    settings = get_settings()
+    # If captcha is provided or if required in production
+    if body.captcha_token or settings.environment == "production":
+        if not body.captcha_token or not body.captcha_answer or not verify_captcha_solution(body.captcha_token, body.captcha_answer):
+            raise AppError(ErrorCode.VALIDATION_ERROR, "Invalid or expired security CAPTCHA answer.", 400)
+
     clean_email = validate_email(body.email)
     validate_password_strength(body.password)
 
@@ -35,7 +51,7 @@ def register(body: RegisterRequest, response: Response, db: Session = Depends(ge
     user = User(
         email=clean_email,
         hashed_password=hashed,
-        full_name=body.full_name.strip() if body.full_name else None,
+        full_name=sanitize_html_free(body.full_name) if body.full_name else None,
         role="patient",
     )
     db.add(user)
@@ -48,7 +64,7 @@ def register(body: RegisterRequest, response: Response, db: Session = Depends(ge
         value=token,
         httponly=True,
         samesite="lax",
-        secure=False,  # Can be True in HTTPS prod
+        secure=settings.environment == "production",
         max_age=86400 * 7,
     )
     return AuthResponse(token=token, user=UserOut.model_validate(user))
@@ -56,6 +72,11 @@ def register(body: RegisterRequest, response: Response, db: Session = Depends(ge
 
 @router.post("/login", response_model=AuthResponse)
 def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)) -> AuthResponse:
+    settings = get_settings()
+    if body.captcha_token:
+        if not body.captcha_answer or not verify_captcha_solution(body.captcha_token, body.captcha_answer):
+            raise AppError(ErrorCode.VALIDATION_ERROR, "Invalid or expired security CAPTCHA answer.", 400)
+
     clean_email = body.email.strip().lower()
     user = db.scalar(select(User).where(User.email == clean_email))
     
@@ -71,10 +92,11 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
         value=token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.environment == "production",
         max_age=86400 * 7,
     )
     return AuthResponse(token=token, user=UserOut.model_validate(user))
+
 
 
 @router.get("/me", response_model=UserOut)

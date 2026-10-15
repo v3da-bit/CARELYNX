@@ -11,11 +11,22 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., max_length=255, description="Valid user email address")
     password: str = Field(..., min_length=8, max_length=128, description="Password with min 8 chars and numbers/symbols")
     full_name: str | None = Field(default=None, max_length=255)
+    captcha_token: str | None = Field(default=None, description="Signed challenge token")
+    captcha_answer: str | None = Field(default=None, description="User response to challenge")
 
 
 class LoginRequest(BaseModel):
     email: str = Field(..., max_length=255)
     password: str = Field(..., max_length=128)
+    captcha_token: str | None = Field(default=None, description="Signed challenge token")
+    captcha_answer: str | None = Field(default=None, description="User response to challenge")
+
+
+class CaptchaChallengeOut(BaseModel):
+    challenge_id: str
+    question: str
+    timestamp: int
+    token: str
 
 
 class UserOut(BaseModel):
@@ -31,3 +42,4 @@ class UserOut(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserOut
+

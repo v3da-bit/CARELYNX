@@ -236,11 +236,32 @@ export interface AuthResponse {
   user: UserProfile;
 }
 
-export const registerUser = async (email: string, password: string, fullName?: string): Promise<AuthResponse> => {
+export interface CaptchaChallenge {
+  challenge_id: string;
+  question: string;
+  timestamp: number;
+  token: string;
+}
+
+export const getCaptchaChallenge = () => api<CaptchaChallenge>("/auth/captcha");
+
+export const registerUser = async (
+  email: string,
+  password: string,
+  fullName?: string,
+  captchaToken?: string,
+  captchaAnswer?: string
+): Promise<AuthResponse> => {
   const res = await api<AuthResponse>("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, full_name: fullName }),
+    body: JSON.stringify({
+      email,
+      password,
+      full_name: fullName,
+      captcha_token: captchaToken,
+      captcha_answer: captchaAnswer,
+    }),
   });
   if (typeof window !== "undefined") {
     localStorage.setItem("carelynx_auth_token", res.token);
@@ -248,11 +269,21 @@ export const registerUser = async (email: string, password: string, fullName?: s
   return res;
 };
 
-export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
+export const loginUser = async (
+  email: string,
+  password: string,
+  captchaToken?: string,
+  captchaAnswer?: string
+): Promise<AuthResponse> => {
   const res = await api<AuthResponse>("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      captcha_token: captchaToken,
+      captcha_answer: captchaAnswer,
+    }),
   });
   if (typeof window !== "undefined") {
     localStorage.setItem("carelynx_auth_token", res.token);
@@ -268,4 +299,5 @@ export const logoutUser = () => {
 
 export const getMe = () => api<UserProfile>("/auth/me");
 export const getUserCases = () => api<CaseOut[]>("/cases");
+
 

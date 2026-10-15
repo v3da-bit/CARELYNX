@@ -35,13 +35,11 @@ def get_case(db: Session, case_id: uuid.UUID, user: Any | None = None) -> Case:
     if case is None:
         raise AppError(ErrorCode.NOT_FOUND, "Case not found.", 404)
     # Enforce strict user isolation: prevent Insecure Direct Object Reference (IDOR)
-    if (
-        user is not None
-        and case.user_id is not None
-        and getattr(user, "id", None) != case.user_id
-        and getattr(user, "role", "patient") not in ("reviewer", "admin")
-    ):
-        raise AppError(ErrorCode.FORBIDDEN, "Access denied: this clinical case belongs to another account.", 403)
+    if case.user_id is not None:
+        if user is None:
+            raise AppError(ErrorCode.FORBIDDEN, "Access denied: authentication required to access this case.", 401)
+        if getattr(user, "id", None) != case.user_id and getattr(user, "role", "patient") not in ("reviewer", "admin"):
+            raise AppError(ErrorCode.FORBIDDEN, "Access denied: this clinical case belongs to another account.", 403)
     return case
 
 
@@ -70,7 +68,7 @@ def upload_document(
     user: Any | None = None,
 ) -> Document:
     check_size(len(data), max_bytes)
-    kind = sniff_file_kind(data)
+    kind = sniff_file_kind(data, client_filename=filename)
     case = (
         get_case(db, case_id, user=user)
         if case_id
@@ -81,13 +79,14 @@ def upload_document(
     try:
         doc = Document(
             case_id=case.id,
-            filename=sanitize_filename(filename),
+            filename=sanitize_filename(filename, expected_ext=kind.extension),
             mime_type=kind.mime_type,
             storage_key=key,
             processing_status=ProcessingStatus.UPLOADED,
             size_bytes=len(data),
             sha256=hashlib.sha256(data).hexdigest(),
         )
+
         db.add(doc)
         db.flush()
         audit.record(
