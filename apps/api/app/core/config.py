@@ -49,7 +49,12 @@ class Settings(BaseSettings):
     def resolved_database_url(self) -> str:
         """Postgres when configured; otherwise a local SQLite file formatted safely for any OS."""
         if self.database_url:
-            return self.database_url
+            url = self.database_url
+            if url.startswith("postgres://"):
+                return url.replace("postgres://", "postgresql+psycopg://", 1)
+            if url.startswith("postgresql://") and not url.startswith("postgresql+"):
+                return url.replace("postgresql://", "postgresql+psycopg://", 1)
+            return url
         var_dir = API_ROOT / "var"
         var_dir.mkdir(parents=True, exist_ok=True)
         db_path = (var_dir / "carelynx.db").resolve().as_posix()
@@ -70,7 +75,15 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        raw = self.cors_origins.strip()
+        if raw == "*":
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @property
+    def cors_allow_credentials(self) -> bool:
+        """Credentials cannot be used with wildcard origins (browser security spec)."""
+        return "*" not in self.cors_origin_list
 
 
 @lru_cache
