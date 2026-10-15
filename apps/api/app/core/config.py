@@ -70,7 +70,15 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        raw = self.cors_origins.strip()
+        if raw == "*":
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @property
+    def cors_allow_credentials(self) -> bool:
+        """Credentials cannot be used with wildcard origins (browser security spec)."""
+        return "*" not in self.cors_origin_list
 
 
 @lru_cache
