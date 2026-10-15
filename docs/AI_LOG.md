@@ -11,6 +11,30 @@
 ## Task Commit History
 
 ```text
+commit a819bf0
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 00:46:00 +0530
+
+    fix(deploy): resolve crash in Carelynx-prod environment and bring rare-connection online
+
+    - Context / Problem addressed:
+      User observed a crash in their Railway dashboard. Inspection revealed the
+      user was viewing a secondary environment (`Carelynx-prod`) containing
+      service `rare-connection`, which was still holding the old non-existent
+      `DATABASE_URL=postgres.railway.internal` and lacked CORS/AUTH settings.
+    - Architectural decisions & changes made:
+      1. Switched Railway CLI context to `Carelynx-prod` environment.
+      2. Removed invalid `DATABASE_URL` from service `rare-connection`.
+      3. Set `CORS_ORIGINS=*` and `AUTH_SECRET_KEY` on `rare-connection`.
+      4. Triggered redeploy of `rare-connection` with all latest codebase fixes.
+      5. Generated and synchronized service domain `rare-connection-carelynx-prod.up.railway.app`.
+    - Verification:
+      - `railway status` confirmed `rare-connection: ● Online`.
+      - Live health check on `https://rare-connection-carelynx-prod.up.railway.app/api/v1/health`
+        returned `HTTP/2 200` with `access-control-allow-origin: *`,
+        `cross-origin-resource-policy: cross-origin`, and `database: connected`.
+      - Live OPTIONS preflight confirmed `HTTP/2 200 OK`.
+
 commit 4a02d8f
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-16 00:34:00 +0530
