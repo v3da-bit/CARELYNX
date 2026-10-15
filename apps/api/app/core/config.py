@@ -49,7 +49,12 @@ class Settings(BaseSettings):
     def resolved_database_url(self) -> str:
         """Postgres when configured; otherwise a local SQLite file formatted safely for any OS."""
         if self.database_url:
-            return self.database_url
+            url = self.database_url
+            if url.startswith("postgres://"):
+                return url.replace("postgres://", "postgresql+psycopg://", 1)
+            if url.startswith("postgresql://") and not url.startswith("postgresql+"):
+                return url.replace("postgresql://", "postgresql+psycopg://", 1)
+            return url
         var_dir = API_ROOT / "var"
         var_dir.mkdir(parents=True, exist_ok=True)
         db_path = (var_dir / "carelynx.db").resolve().as_posix()

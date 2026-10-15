@@ -11,6 +11,31 @@
 ## Task Commit History
 
 ```text
+commit e49da71
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-15 23:49:00 +0530
+
+    fix(deploy): update Railway backend environment configuration and normalize database URLs
+
+    - Context / Problem addressed:
+      User provided their Railway backend environment variables, which contained
+      Docker-specific variables (DOCKER_CORS_ORIGINS, DOCKER_*, LLM_*) instead of
+      FastAPI configuration. Crucially, `CORS_ORIGINS` was missing (causing CORS
+      errors on Vercel), and raw Postgres credentials were provided instead of
+      `DATABASE_URL`.
+    - Architectural decisions & changes made:
+      1. Updated `apps/api/app/core/config.py` `resolved_database_url` to automatically
+         normalize `postgres://` and `postgresql://` connection strings to
+         `postgresql+psycopg://` so Railway-injected database URLs work seamlessly
+         with SQLAlchemy 2.x and Psycopg 3 without raising driver errors.
+      2. Mapped user variables to exact Railway production backend configuration:
+         - Replaced `DOCKER_CORS_ORIGINS` with `CORS_ORIGINS=*`
+         - Replaced split Postgres credentials with `DATABASE_URL`
+         - Removed unnecessary Docker Compose build and frontend variables
+         - Added `AUTH_SECRET_KEY` and production safety defaults.
+    - Verification:
+      - Validated `config.py` against Pydantic settings.
+
 commit f3a8d90
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-14 23:17:40 +0530
