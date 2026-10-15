@@ -11,6 +11,31 @@
 ## Task Commit History
 
 ```text
+commit 4a02d8f
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 00:34:00 +0530
+
+    fix(deploy): complete Railway backend deployment, bind dynamic port, and verify live API
+
+    - Context / Problem addressed:
+      User requested full deployment of the CARELYNX backend on Railway. Previous
+      deployments were crashing during Alembic startup due to unresolved
+      `postgres.railway.internal` hostname, had port mismatches, and suffered
+      from cross-origin CORP blocking.
+    - Architectural decisions & changes made:
+      1. Authenticated Railway CLI with user's session and linked project `desirable-rebirth`.
+      2. Deleted invalid `DATABASE_URL` variable to activate built-in SQLite fallback.
+      3. Set `AUTH_SECRET_KEY` and verified `CORS_ORIGINS=*`.
+      4. Updated `apps/api/Dockerfile` CMD to bind uvicorn to dynamic `${PORT:-8000}`.
+      5. Pushed fixes to GitHub `main` and triggered Railway deployment `7b3e8605`.
+      6. Activated and synchronized service domain `https://carelynx-production.up.railway.app`.
+    - Verification:
+      - Live health check via `curl -i -H "Origin: https://carelynx-two.vercel.app"` returned
+        `HTTP/2 200` with `access-control-allow-origin: *`,
+        `cross-origin-resource-policy: cross-origin`, and `database: connected`.
+      - Live OPTIONS preflight returned `HTTP/2 200 OK`.
+      - Live `/api/v1/cases` endpoint returned `HTTP/2 200 []`.
+
 commit b892fe4
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-16 00:08:00 +0530
