@@ -1647,7 +1647,7 @@ function HomeContent() {
             {/* Language Switcher and Action Pills */}
             <div className="flex flex-wrap items-center gap-3 no-print">
               {/* Language Selector Pill */}
-              <div className="flex items-center bg-slate-100 rounded-full p-1 border border-slate-200 text-xs font-medium">
+              <div className="flex items-center bg-slate-100 rounded-full p-1 border border-slate-200 text-xs font-medium max-w-full overflow-x-auto custom-scrollbar shrink-0">
                 <Globe className="w-3.5 h-3.5 text-slate-600 ml-2 mr-1" />
                 <button 
                   onClick={() => handleLanguageChange("en")} 
@@ -2499,7 +2499,7 @@ function HomeContent() {
           aria-modal="true"
           aria-labelledby="auth-modal-title"
         >
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-6 sm:p-8 relative">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full p-6 sm:p-8 relative max-h-[92dvh] overflow-y-auto custom-scrollbar">
             <button
               onClick={() => setShowAuthModal(false)}
               className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
@@ -2717,7 +2717,7 @@ function HomeContent() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 flex flex-col max-h-[92dvh] overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">

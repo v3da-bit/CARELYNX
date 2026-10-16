@@ -11,6 +11,57 @@
 ## Task Commit History
 
 ```text
+commit 8e6c2d1
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-16 11:24:00 +0530
+
+    feat(ui & responsiveness): integrate Favicon Pack logos and enforce full portrait/landscape responsiveness
+
+    - Context / Problem addressed:
+      1. User provided CARELYNX_Favicon_Pack and requested adding logos and favicons across the site.
+      2. User requested making the entire site responsive for all screen sizes in both portrait and landscape orientations.
+    - Architectural decisions & changes made:
+      1. Favicon Pack Integration:
+         - Copied favicon pack assets to `apps/web/public/`: `favicon.ico`, `favicon-16x16.png`,
+           `favicon-32x32.png`, `favicon-48x48.png`, `apple-touch-icon.png`, `android-chrome-192x192.png`,
+           `android-chrome-512x512.png`, and `carelynx-icon.png`.
+         - Created `apps/web/public/site.webmanifest` configuring theme color `#0d9488` and PWA icons.
+         - Updated `apps/web/app/layout.tsx` with Next.js Viewport export and comprehensive `metadata.icons`
+           (icon, apple, other, and manifest).
+         - Replaced generic placeholder icons with crisp, high-resolution `carelynx-icon.png` in `Navbar.tsx`,
+           the mobile navigation drawer, `Footer.tsx`, and `refund/page.tsx`.
+      2. Cross-Screen Responsive Layouts (Portrait & Landscape):
+         - In `apps/web/app/globals.css`:
+           - Added CSS safe-area insets (`--sat`, `--sar`, `--sab`, `--sal`) to eliminate notch and home-indicator clippings.
+           - Added landscape orientation rules `@media (orientation: landscape) and (max-height: 520px)` to
+             condense header padding, align modals safely, and prevent vertical overflow.
+           - Added `.grid-responsive-cards` and `.clinical-break-words` for fluid wrapping on compact viewports.
+         - In `apps/web/app/page.tsx`:
+           - Made Auth modal, Profile modal, and Evidence modal scrollable with `max-h-[92dvh] overflow-y-auto`
+             so form submission buttons remain accessible on landscape phones.
+           - Made the language switcher pill horizontally scrollable on narrow portrait viewports (`max-w-full overflow-x-auto`).
+         - In `apps/web/app/components/CookieConsent.tsx`:
+           - Updated preferences modal to use dynamic viewport height `max-h-[92dvh]`.
+         - In `apps/web/app/review/page.tsx`:
+           - Made the clinical reviewer split view fully responsive on mobile/tablets:
+             toggling between the queue list and the inspection panel when an alert is selected,
+             with a mobile "← Back to Review Queue" button.
+           - Used dynamic viewport units `min-h-[calc(100dvh-5.5rem)] md:h-[calc(100dvh-6.5rem)]`.
+      3. Verification & Testing:
+         - Ran `npm run build` in `apps/web`: 10/10 static pages generated in 1.6s with 0 TypeScript/build errors.
+         - Ran full backend pytest suite: 143/143 tests passed.
+    - Files created / modified:
+      - apps/web/public/* (8 favicon pack images + site.webmanifest)
+      - apps/web/app/layout.tsx
+      - apps/web/app/globals.css
+      - apps/web/app/components/Navbar.tsx
+      - apps/web/app/components/Footer.tsx
+      - apps/web/app/components/CookieConsent.tsx
+      - apps/web/app/page.tsx
+      - apps/web/app/refund/page.tsx
+      - apps/web/app/review/page.tsx
+      - docs/AI_LOG.md
+
 commit 7d4a1b0
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 11:11:00 +0530

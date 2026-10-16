@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   HeartHandshake,
@@ -128,8 +129,15 @@ export default function Navbar() {
               className="flex items-center gap-3 font-bold tracking-tight text-slate-900 group cursor-pointer shrink-0"
               id="nav-home"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform">
-                <HeartHandshake className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200/80 p-1 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform overflow-hidden shrink-0">
+                <Image
+                  src="/carelynx-icon.png"
+                  alt="CARELYNX Logo"
+                  width={36}
+                  height={36}
+                  className="w-full h-full object-contain"
+                  priority
+                />
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
                 <span className="text-xl font-extrabold tracking-tight text-slate-900">CARELYNX</span>
@@ -282,8 +290,14 @@ export default function Navbar() {
             {/* Drawer Top Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center shadow-xs">
-                  <HeartHandshake className="w-5 h-5 text-white" />
+                <div className="w-8 h-8 rounded-xl bg-white border border-slate-200/80 p-0.5 flex items-center justify-center shadow-xs overflow-hidden shrink-0">
+                  <Image
+                    src="/carelynx-icon.png"
+                    alt="CARELYNX Logo"
+                    width={28}
+                    height={28}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
                   <span className="text-base font-extrabold text-slate-900 block leading-tight">CARELYNX</span>

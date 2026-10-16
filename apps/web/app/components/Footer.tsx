@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ShieldCheck, HeartHandshake, Lock, Phone, Mail, Building, FileText, Cookie } from "lucide-react";
 
 export default function Footer() {
@@ -26,8 +27,14 @@ export default function Footer() {
           {/* Col 1 & 2: Entity & Mission */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center shadow-xs">
-                <HeartHandshake className="w-5 h-5 text-white" aria-hidden="true" />
+              <div className="w-9 h-9 rounded-xl bg-white border border-slate-200/80 p-1 flex items-center justify-center shadow-xs overflow-hidden shrink-0">
+                <Image
+                  src="/carelynx-icon.png"
+                  alt="CARELYNX Logo"
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-contain"
+                />
               </div>
               <span className="text-base font-extrabold tracking-tight text-slate-900">CARELYNX</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">

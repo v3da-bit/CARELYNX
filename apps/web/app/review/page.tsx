@@ -417,9 +417,9 @@ function ReviewDashboardContent() {
   });
 
   return (
-    <div className="w-full h-[calc(100dvh-6.5rem)] flex flex-col md:flex-row overflow-hidden max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 pb-4 pt-1 gap-4">
+    <div className="w-full min-h-[calc(100dvh-5.5rem)] md:h-[calc(100dvh-6.5rem)] flex flex-col md:flex-row overflow-hidden max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 pb-4 pt-1 gap-4">
       {/* Left Sidebar: Queue of Open Reviews */}
-      <aside className="w-full md:w-80 lg:w-96 border border-slate-200/80 rounded-2xl bg-white flex flex-col shrink-0 h-full overflow-hidden shadow-xs">
+      <aside className={`w-full md:w-80 lg:w-96 border border-slate-200/80 rounded-2xl bg-white flex-col shrink-0 md:h-full overflow-hidden shadow-xs ${selectedReview ? 'hidden md:flex' : 'flex h-[calc(100dvh-6.5rem)] md:h-full'}`}>
         {/* Workspace Brand / Header */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-2">
@@ -532,11 +532,23 @@ function ReviewDashboardContent() {
       </aside>
 
       {/* Main Review Inspection Panel */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto custom-scrollbar bg-slate-50/50 border border-slate-200/80 rounded-2xl shadow-xs">
+      <main className={`flex-1 flex-col h-full overflow-y-auto custom-scrollbar bg-slate-50/50 border border-slate-200/80 rounded-2xl shadow-xs ${selectedReview ? 'flex' : 'hidden md:flex'}`}>
         {selectedReview ? (
-          <div className="p-6 max-w-5xl mx-auto w-full flex flex-col gap-6">
+          <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full flex flex-col gap-4 sm:gap-6">
+            {/* Mobile Back Button */}
+            <div className="md:hidden flex items-center justify-between pb-1">
+              <button
+                type="button"
+                onClick={() => setSelectedReview(null)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Review Queue</span>
+              </button>
+            </div>
+
             {/* Header / Case Details */}
-            <div className="card p-6 flex flex-col gap-3 shadow-xs bg-white">
+            <div className="card p-4 sm:p-6 flex flex-col gap-3 shadow-xs bg-white">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   {selectedReview.reason_code} • Severity: {selectedReview.severity}

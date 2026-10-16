@@ -194,7 +194,7 @@ export default function CookieConsent() {
           <div
             ref={modalRef}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 text-slate-900 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-8 flex flex-col gap-6 text-slate-900 max-h-[92dvh] overflow-y-auto custom-scrollbar"
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">

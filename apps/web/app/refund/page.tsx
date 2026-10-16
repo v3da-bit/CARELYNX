@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ShieldCheck, ArrowLeft, HeartHandshake, CheckCircle2, FileText, Mail, Phone } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -27,8 +28,14 @@ export default function RefundPolicyPage() {
       {/* Header Banner */}
       <header className="bg-white/90 backdrop-blur-md border border-slate-200 rounded-3xl p-8 shadow-xs flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
-            <HeartHandshake className="w-6 h-6" aria-hidden="true" />
+          <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200/80 p-1.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+            <Image
+              src="/carelynx-icon.png"
+              alt="CARELYNX Logo"
+              width={38}
+              height={38}
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
