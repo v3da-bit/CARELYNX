@@ -1,8 +1,0 @@
-name = "carelynx"
-compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".next"
-
-[vars]
-NEXT_PUBLIC_APP_NAME = "CARELYNX"
-NEXT_PUBLIC_API_BASE_URL = "/api/v1"

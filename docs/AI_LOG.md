@@ -11,6 +11,48 @@
 ## Task Commit History
 
 ```text
+commit 3099690
+Author: Claude Opus 4.6 via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-16 10:57:00 +0530
+
+    refactor(deploy): merge origin/main, resolve conflicts, remove Cloudflare in favor of Vercel/Railway
+
+    - Context / Problem addressed:
+      1. User requested pulling latest from origin/main and merging into local Meet branch.
+      2. User requested removing all Cloudflare dependencies/integrations since deployment
+         target is Vercel (frontend) + Railway (backend).
+      3. Merge conflict in docs/AI_LOG.md needed resolution.
+    - Architectural decisions & changes made:
+      1. Git Synchronization:
+         - Fetched origin and identified 6 new commits on origin/main (a7204eb..d6bf179):
+           Railway deployment fixes, CORP header fix, Dockerfile port binding, and deployment logging.
+         - Merged origin/main into Meet branch, resolved conflict in docs/AI_LOG.md by
+           combining both chronological logs (local + remote entries preserved).
+         - Updated local main tracking branch to origin/main (d6bf179).
+      2. Cloudflare Removal (6 files deleted):
+         - apps/web/wrangler.toml (Cloudflare Pages config)
+         - apps/api/wrangler.toml (Cloudflare Worker config with account_id)
+         - apps/api/worker.js (Cloudflare edge worker gateway script)
+         - apps/web/public/_routes.json (Cloudflare Pages routing rules)
+         - scripts/deploy_cloudflare.sh (Cloudflare deployment automation)
+         - docs/CLOUDFLARE_DEPLOYMENT.md (Cloudflare deployment guide)
+      3. Verified Vercel/Railway deployment files remain intact:
+         - apps/web/vercel.json, apps/web/.env.production.example
+         - apps/api/railway.json, apps/api/nixpacks.toml, apps/api/.env.railway.example
+         - docs/DEPLOYMENT.md
+    - Files created / modified:
+      - docs/AI_LOG.md (merge conflict resolved + this entry)
+      - 6 Cloudflare files deleted (listed above)
+    - Verification & testing performed:
+      - Backend pytest: tests executed post-merge.
+      - No remaining Cloudflare code references (grep confirmed).
+    - Alignment check:
+      Confirmed compliance with docs/PRD.md and docs/SAFETY.md. No architectural drift —
+      deployment target is Vercel + Railway as established in docs/DEPLOYMENT.md.
+
+```
+
+```text
 commit (security hardening & white box testing)
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 00:14:00 +0530
