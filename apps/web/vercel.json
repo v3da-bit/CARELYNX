@@ -18,7 +18,7 @@
   "rewrites": [
     {
       "source": "/api/v1/:path*",
-      "destination": "https://YOUR_RAILWAY_BACKEND_URL/api/v1/:path*"
+      "destination": "https://carelynx-production.up.railway.app/api/v1/:path*"
     }
   ]
 }

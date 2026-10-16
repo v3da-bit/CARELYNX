@@ -47,12 +47,84 @@ Date:   2026-10-16 00:14:00 +0530
          - Evaluated statement and branch coverage: 86% total coverage across 2,835 statements.
          - Ran clinical evaluation benchmark: 100% precision, 100% recall, 100% evidence links, 0% unsupported claims.
          - Compiled Next.js frontend with Turbopack: 10/10 static pages compiled with 0 errors.
-      3. Cloudflare Deployment Suite:
+      3. Cloudflare Deployment Suite (SUPERSEDED — removed in favor of Vercel/Railway):
          - Created `apps/web/wrangler.toml` for Cloudflare Pages (project name `carelynx`).
          - Created `apps/api/wrangler.toml` and `apps/api/worker.js` for Cloudflare Worker edge API routing.
          - Created `apps/web/public/_routes.json` for Cloudflare Pages routing rules.
          - Created automated deployment script `scripts/deploy_cloudflare.sh`.
          - Authored deployment guide in `docs/CLOUDFLARE_DEPLOYMENT.md`.
+
+```
+
+```text
+commit a819bf0
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 00:46:00 +0530
+
+    fix(deploy): resolve crash in Carelynx-prod environment and bring rare-connection online
+
+    - Context / Problem addressed:
+      User observed a crash in their Railway dashboard. Inspection revealed the
+      user was viewing a secondary environment (`Carelynx-prod`) containing
+      service `rare-connection`, which was still holding the old non-existent
+      `DATABASE_URL=postgres.railway.internal` and lacked CORS/AUTH settings.
+    - Architectural decisions & changes made:
+      1. Switched Railway CLI context to `Carelynx-prod` environment.
+      2. Removed invalid `DATABASE_URL` from service `rare-connection`.
+      3. Set `CORS_ORIGINS=*` and `AUTH_SECRET_KEY` on `rare-connection`.
+      4. Triggered redeploy of `rare-connection` with all latest codebase fixes.
+      5. Generated and synchronized service domain `rare-connection-carelynx-prod.up.railway.app`.
+    - Verification:
+      - `railway status` confirmed `rare-connection: ● Online`.
+      - Live health check on `https://rare-connection-carelynx-prod.up.railway.app/api/v1/health`
+        returned `HTTP/2 200` with `access-control-allow-origin: *`,
+        `cross-origin-resource-policy: cross-origin`, and `database: connected`.
+      - Live OPTIONS preflight confirmed `HTTP/2 200 OK`.
+
+commit 4a02d8f
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 00:34:00 +0530
+
+    fix(deploy): complete Railway backend deployment, bind dynamic port, and verify live API
+
+    - Context / Problem addressed:
+      User requested full deployment of the CARELYNX backend on Railway. Previous
+      deployments were crashing during Alembic startup due to unresolved
+      `postgres.railway.internal` hostname, had port mismatches, and suffered
+      from cross-origin CORP blocking.
+    - Architectural decisions & changes made:
+      1. Authenticated Railway CLI with user's session and linked project `desirable-rebirth`.
+      2. Deleted invalid `DATABASE_URL` variable to activate built-in SQLite fallback.
+      3. Set `AUTH_SECRET_KEY` and verified `CORS_ORIGINS=*`.
+      4. Updated `apps/api/Dockerfile` CMD to bind uvicorn to dynamic `${PORT:-8000}`.
+      5. Pushed fixes to GitHub `main` and triggered Railway deployment `7b3e8605`.
+      6. Activated and synchronized service domain `https://carelynx-production.up.railway.app`.
+    - Verification:
+      - Live health check via `curl -i -H "Origin: https://carelynx-two.vercel.app"` returned
+        `HTTP/2 200` with `access-control-allow-origin: *`,
+        `cross-origin-resource-policy: cross-origin`, and `database: connected`.
+      - Live OPTIONS preflight returned `HTTP/2 200 OK`.
+      - Live `/api/v1/cases` endpoint returned `HTTP/2 200 []`.
+
+commit b892fe4
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 00:08:00 +0530
+
+    fix(deploy): document Railway PostgreSQL host resolution and SQLite fallback
+
+    - Context / Problem addressed:
+      Railway deployment startup failed during `alembic upgrade head` with
+      `psycopg.OperationalError: failed to resolve host 'postgres.railway.internal'`.
+      User had pasted the placeholder internal Postgres URL instead of connecting
+      an actual Railway PostgreSQL service or referencing Railway's variable.
+    - Architectural decisions & changes made:
+      1. Provided instructions to either:
+         a. Connect Railway's Postgres plugin and use `${{Postgres.DATABASE_URL}}`
+            or the actual Connection String from Railway's Postgres service.
+         b. Remove `DATABASE_URL` to enable the built-in SQLite database fallback
+            which requires no external database service.
+    - Verification:
+      - Validated `Settings.resolved_database_url` fallback to SQLite.
 
 ```
 
@@ -73,9 +145,6 @@ Date:   2026-10-15 23:55:00 +0530
       3. Synchronized local `main` tracking branch to `origin/main` (`04f4c88`).
     - Verification & Testing:
       - Ran pytest across `apps/api/tests`: 127/127 tests passed cleanly (100%).
-```
-
-```text
 commit e49da71
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-15 23:49:00 +0530
