@@ -280,6 +280,16 @@ html, body {
   padding-right: var(--sar);
 }
 
+/* Keep nested flex/grid children from forcing a horizontal overflow. Clinical
+   values may be long, especially after translation or when source text is shown. */
+main :where(.flex, .grid) > * {
+  min-width: 0;
+}
+
+main :where(p, span, a, button, code) {
+  overflow-wrap: anywhere;
+}
+
 /* Responsive modal sizing for both portrait and landscape */
 [role="dialog"] {
   padding-left: max(1rem, var(--sal));

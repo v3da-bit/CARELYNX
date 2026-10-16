@@ -11,6 +11,43 @@
 ## Task Commit History
 
 ```text
+commit e627957
+Author: Codex <codex@carelynx.local>
+Date:   2026-10-17 01:28:19 +0530
+
+    fix(web): prevent responsive care-plan and reviewer layout collisions
+
+    - Context / Problem addressed:
+      Follow-up cards compressed their clinical date beneath safety controls at
+      medium desktop widths. The navigation and reviewer workspace also entered
+      multi-column layouts before their content had sufficient space.
+    - Architectural decisions & changes made:
+      1. Kept follow-up card actions in a readable stacked layout until ultra-wide
+         screens, preserving every review status and evidence action.
+      2. Moved the navigation and reviewer split-workspace breakpoints to wider
+         viewports; legal and privacy headers now stack cleanly on narrow screens.
+      3. Added safe wrapping/minimum-width protections for long clinical evidence,
+         translated text, dates, and identifiers; removed an invalid page export
+         that prevented Next.js production type checks.
+    - Files created / modified:
+      - apps/web/app/page.tsx
+      - apps/web/app/review/page.tsx
+      - apps/web/app/components/Navbar.tsx
+      - apps/web/app/globals.css
+      - apps/web/app/cookies/page.tsx
+      - apps/web/app/privacy/page.tsx
+      - apps/web/app/privacy/data-request/page.tsx
+      - apps/web/app/refund/page.tsx
+      - apps/web/app/terms/page.tsx
+      - docs/AI_LOG.md
+    - Verification & testing performed:
+      - npm run lint (passed)
+      - npx next build --webpack (passed; all eight application routes generated)
+      - git diff --check (passed)
+    - Alignment check:
+      Confirmed compliance with docs/PRD.md and docs/SAFETY.md; no clinical facts,
+      statuses, evidence handling, or safety flows were altered.
+
 commit 7a1f59e
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-17 00:47:00 +0530

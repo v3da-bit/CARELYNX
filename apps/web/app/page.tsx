@@ -22,7 +22,7 @@ import {
 
 export type Lang = "en" | "hi" | "gu" | "mr" | "ta" | "te";
 
-export const UI_I18N: Record<Lang, {
+const UI_I18N: Record<Lang, {
   printPlan: string;
   readAloud: string;
   pause: string;
@@ -2020,13 +2020,13 @@ function HomeContent() {
                           }`}
                         >
                           {/* Top White Point Tab Header */}
-                          <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                          <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 w-full">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <div className="w-10 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0 shadow-2xs">
                                 <Clock className="w-5 h-5" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <span className="text-sm font-bold text-slate-900 block truncate">
+                                <span className="text-sm font-bold text-slate-900 block break-words">
                                   {title}
                                 </span>
                                 <span className="text-xs font-semibold text-slate-500 block mt-0.5">
@@ -2035,7 +2035,7 @@ function HomeContent() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 flex-wrap shrink-0">
+                            <div className="flex w-full 2xl:w-auto items-center justify-start 2xl:justify-end gap-2 flex-wrap shrink-0">
                               <StatusBadge status={f.status} lang={language} />
                               {isConflict && (
                                 <a
@@ -2169,9 +2169,9 @@ function HomeContent() {
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                            <span>{subtitle}</span>
-                            <span className="font-semibold text-brand underline decoration-emerald-200 group-hover:decoration-brand">{ui.viewSourceProof}</span>
+                          <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] text-slate-500 pt-1">
+                            <span className="min-w-0 break-words">{subtitle}</span>
+                            <span className="font-semibold text-brand underline decoration-emerald-200 group-hover:decoration-brand shrink-0">{ui.viewSourceProof}</span>
                           </div>
                         </div>
                       );

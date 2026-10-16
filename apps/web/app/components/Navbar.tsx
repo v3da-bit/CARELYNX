@@ -110,11 +110,11 @@ export default function Navbar() {
       {/* Top Navbar Container — flush to top edge with zero gap */}
       <header className="sticky top-0 z-40 w-full px-3 sm:px-6 lg:px-8 pt-0 pb-2 transition-all no-print">
         <nav
-          className="bg-white/90 backdrop-blur-md rounded-t-none rounded-b-2xl p-4 sm:p-5 md:p-6 border border-t-0 border-slate-200/80 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6 w-full max-w-[1720px] mx-auto transition-all"
+          className="bg-white/90 backdrop-blur-md rounded-t-none rounded-b-2xl p-4 sm:p-5 xl:p-6 border border-t-0 border-slate-200/80 shadow-xs flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 xl:gap-6 w-full max-w-[1720px] mx-auto transition-all"
           aria-label="Main Navigation"
         >
           {/* Top Row on Mobile / Left on Desktop: Brand Logo & Mobile Trigger */}
-          <div className="w-full md:w-auto flex items-center justify-between gap-4">
+          <div className="w-full xl:w-auto flex items-center justify-between gap-4">
             <Link
               href="/"
               onClick={(e) => {
@@ -147,7 +147,7 @@ export default function Navbar() {
             </Link>
 
             {/* Mobile Header Actions (Alert badge + Hamburger Toggle) */}
-            <div className="flex md:hidden items-center gap-2">
+            <div className="flex xl:hidden items-center gap-2">
               {openReviewCount > 0 && (
                 <button
                   onClick={navigateToReview}
@@ -171,7 +171,7 @@ export default function Navbar() {
           </div>
 
           {/* Center Desktop Navigation Tabs (Innovative Segmented Pill Layout) */}
-          <div className="hidden md:flex items-center bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/70 shadow-2xs">
+          <div className="hidden xl:flex items-center bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/70 shadow-2xs">
             <button
               onClick={() => handleNavToSection("features", "carelynx:features")}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === "features" && pathname === "/"
@@ -223,7 +223,7 @@ export default function Navbar() {
           </div>
 
           {/* Right Desktop Action Pills */}
-          <div className="hidden md:flex items-center gap-2.5 text-sm shrink-0">
+          <div className="hidden xl:flex items-center gap-2.5 text-sm shrink-0">
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("carelynx:history"))}
               className="px-3.5 py-2 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
@@ -276,7 +276,7 @@ export default function Navbar() {
 
       {/* Mobile Slide-Out Side Panel Drawer */}
       {sidePanelOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex justify-end no-print" role="dialog" aria-modal="true">
+        <div className="xl:hidden fixed inset-0 z-50 flex justify-end no-print" role="dialog" aria-modal="true">
           {/* Backdrop Overlay */}
           <div
             onClick={() => setSidePanelOpen(false)}
@@ -463,4 +463,3 @@ export default function Navbar() {
     </>
   );
 }
-
