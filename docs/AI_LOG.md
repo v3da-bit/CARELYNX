@@ -11,6 +11,27 @@
 ## Task Commit History
 
 ```text
+commit 7f1e49b
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-16 11:35:00 +0530
+
+    fix(web & auth): eliminate spurious 401 unauthenticated /auth/me network calls and handle offline API health checks
+
+    - Context / Problem addressed:
+      1. User reported repeating console/network tab errors for `http://localhost:8000/api/v1/health` and `http://localhost:8000/api/v1/auth/me`.
+      2. Root cause 1: On page load, `HomeContent` executed `getMe()` unconditionally when `firebaseUser` was null, even when no `carelynx_auth_token` was present in `localStorage`. This caused FastAPI to throw an unauthenticated `401 Unauthorized` in the browser console.
+      3. Root cause 2: Only the Next.js frontend was running on port 3000 (`npm start`), while the FastAPI backend service on port 8000 was offline, causing fetch attempts to `http://localhost:8000/api/v1/health` to fail with network connection errors.
+    - Architectural decisions & changes made:
+      1. `apps/web/app/page.tsx`:
+         - Guarded `getMe()` call in `onAuthStateChange`: only query `/api/v1/auth/me` if `carelynx_auth_token` is present in `localStorage`. If absent, immediately set `currentUser` to `null` without dispatching an unauthenticated network request.
+         - Gracefully handled `getHealth()` promise rejection: log a non-fatal warning when the backend is offline instead of displaying a blocking UI error state.
+    - Verification & Testing:
+      - `apps/web`: Ran `npm run build` with Turbopack — all 10 static pages compiled cleanly with 0 TypeScript errors.
+      - `apps/api`: Ran pytest suite (`tests/unit/test_firebase_auth.py`) — 6/6 tests passed.
+    - Files created / modified:
+      - apps/web/app/page.tsx
+      - docs/AI_LOG.md
+
 commit 3a9e102
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 11:27:00 +0530

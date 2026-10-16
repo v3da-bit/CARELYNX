@@ -304,7 +304,11 @@ function HomeContent() {
   const [mobileTab, setMobileTab] = useState<"all" | "warnings" | "followups" | "meds" | "instructions">("all");
 
   useEffect(() => {
-    getHealth().catch((e: Error) => setError(e.message));
+    getHealth()
+      .then(() => setError(null))
+      .catch((e: Error) => {
+        console.warn("Backend API not reachable yet on port 8000:", e.message);
+      });
 
     const unsubscribe = onAuthStateChange(async (firebaseUser) => {
       if (firebaseUser) {
@@ -334,9 +338,19 @@ function HomeContent() {
           }
         }
       } else {
-        getMe()
-          .then(setCurrentUser)
-          .catch(() => setCurrentUser(null));
+        const storedToken = typeof window !== "undefined" ? localStorage.getItem("carelynx_auth_token") : null;
+        if (storedToken) {
+          getMe()
+            .then(setCurrentUser)
+            .catch(() => {
+              if (typeof window !== "undefined") {
+                localStorage.removeItem("carelynx_auth_token");
+              }
+              setCurrentUser(null);
+            });
+        } else {
+          setCurrentUser(null);
+        }
       }
     });
 
