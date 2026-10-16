@@ -10,10 +10,12 @@ import uuid
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 
-from fastapi import Header, Request, Response
+from fastapi import Depends, Header, Request, Response
 
+from app.core.auth import get_optional_user
 from app.core.config import get_settings
 from app.core.errors import AppError, ErrorCode, error_response
+from app.models import User
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -58,6 +60,7 @@ async def security_middleware(
     return response
 
 
+
 class Role(StrEnum):
     PATIENT = "patient"
     REVIEWER = "reviewer"
@@ -72,8 +75,33 @@ def current_role(x_carelynx_role: str | None = Header(default=None)) -> Role:
         raise AppError(ErrorCode.FORBIDDEN, "Unknown role.", 403) from exc
 
 
-def require_reviewer(x_carelynx_role: str | None = Header(default=None)) -> Role:
+def require_reviewer(
+    x_carelynx_role: str | None = Header(default=None),
+    user: User | None = Depends(get_optional_user),
+) -> Role:
+    # 1. If an authenticated user is present, their database role is enforced.
+    # An authenticated patient cannot escalate to reviewer via header spoofing.
+    if user is not None:
+        if getattr(user, "role", "patient") in ("reviewer", "admin"):
+            return Role.REVIEWER
+        raise AppError(
+            ErrorCode.FORBIDDEN,
+            "Reviewer role required: your account does not have clinical review privileges.",
+            403,
+        )
+
+    # 2. In production, unauthenticated callers cannot assert reviewer status via header.
+    settings = get_settings()
+    if settings.environment == "production":
+        raise AppError(
+            ErrorCode.FORBIDDEN,
+            "Authentication required: clinical reviewer login required in production.",
+            403,
+        )
+
+    # 3. Development/test demo boundary fallback
     role = current_role(x_carelynx_role)
     if role is not Role.REVIEWER:
         raise AppError(ErrorCode.FORBIDDEN, "Reviewer role required.", 403)
     return role
+

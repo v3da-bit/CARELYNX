@@ -11,6 +11,33 @@
 ## Task Commit History
 
 ```text
+commit 3c7a912
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-16 21:23:00 +0530
+
+    fix(security & web): harden reviewer RBAC against header spoofing and eliminate all frontend lint warnings
+
+    - Context / Problem addressed:
+      Addressed the remaining high-severity issue noted in `docs/QA_TEST_REPORT.md`:
+      Reviewer privileges could previously be self-asserted through caller-controlled
+      `X-Carelynx-Role: reviewer` headers. Also addressed lingering frontend ESLint
+      unused import warnings.
+    - Architectural decisions & changes made:
+      1. Hardened `require_reviewer` in `apps/api/app/core/security.py`:
+         - If an authenticated user is present, enforces that their verified database
+           role is "reviewer" or "admin". Authenticated patients are blocked with HTTP 403
+           even if they attempt header spoofing.
+         - In production environments, unauthenticated requests asserting reviewer role
+           via headers are blocked with HTTP 403.
+      2. Added regression unit tests in `apps/api/tests/unit/test_security_hardening.py`
+         proving patients cannot self-escalate to reviewer, and verified reviewers pass.
+      3. Cleaned up all unused icon imports in `Footer.tsx`, `Navbar.tsx`, and `refund/page.tsx`.
+    - Verification:
+      - `pytest apps/api/tests/unit/test_security_hardening.py` passed 12/12 tests.
+      - `pytest apps/api/tests/integration/test_reviews.py` passed 8/8 tests.
+      - `npm --prefix apps/web run lint` passed with 0 errors and 0 warnings.
+      - `./scripts/verify_deployment.sh` passed all 4 stages with exit code 0.
+
 commit 9a2f4c1
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 12:05:00 +0530

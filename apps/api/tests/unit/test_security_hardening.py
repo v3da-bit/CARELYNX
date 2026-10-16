@@ -174,3 +174,31 @@ def test_idor_prevention_on_owned_cases(db: Session) -> None:
     with pytest.raises(AppError) as exc_unauth:
         doc_service.get_case(db, case.id, user=None)
     assert exc_unauth.value.status_code == 401
+
+
+def test_require_reviewer_blocks_authenticated_patient_spoofing() -> None:
+    from app.core.security import require_reviewer
+
+    patient_user = User(
+        email="patient@example.com",
+        hashed_password="pw",
+        role="patient",
+    )
+    # Patient sending X-Carelynx-Role: reviewer must be blocked with 403
+    with pytest.raises(AppError) as exc:
+        require_reviewer(x_carelynx_role="reviewer", user=patient_user)
+    assert exc.value.status_code == 403
+    assert "privileges" in exc.value.message.lower()
+
+
+def test_require_reviewer_allows_authenticated_reviewer() -> None:
+    from app.core.security import Role, require_reviewer
+
+    reviewer_user = User(
+        email="doctor@hospital.org",
+        hashed_password="pw",
+        role="reviewer",
+    )
+    role = require_reviewer(x_carelynx_role=None, user=reviewer_user)
+    assert role == Role.REVIEWER
+

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ShieldCheck, ArrowLeft, HeartHandshake, CheckCircle2, FileText, Mail, Phone } from "lucide-react";
+import { ShieldCheck, ArrowLeft, CheckCircle2, FileText, Mail, Phone } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

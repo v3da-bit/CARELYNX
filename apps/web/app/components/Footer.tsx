@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ShieldCheck, HeartHandshake, Lock, Phone, Mail, Building, FileText, Cookie } from "lucide-react";
+import { ShieldCheck, Lock, Phone, Mail, Building, FileText, Cookie } from "lucide-react";
 
 export default function Footer() {
   const pathname = usePathname();
