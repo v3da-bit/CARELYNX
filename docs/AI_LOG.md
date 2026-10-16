@@ -11,6 +11,25 @@
 ## Task Commit History
 
 ```text
+commit 7a1f59e
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-17 00:47:00 +0530
+
+    feat(presentation): generate 10-slide executive pitch deck PDF for Lablab.ai hackathon submission
+
+    - Context / Problem addressed:
+      User requested a complete project slide presentation for the AMD Developer
+      Hackathon submission on Lablab.ai (Step 2: Media -> Slide Presentation PDF).
+    - Architectural decisions & changes made:
+      1. Created `scripts/generate_pitch_deck.py` which compiles a 10-slide 16:9
+         executive deck with custom gradients, metrics, architectural pipeline,
+         AMD ROCm & vLLM hardware details, clinical safety invariants, and team credentials.
+      2. Automated high-resolution vector PDF rendering using headless Google Chrome
+         (`--print-to-pdf --no-pdf-header-footer`) to produce `CARELYNX_Slide_Presentation.pdf`.
+    - Verification:
+      - Validated `CARELYNX_Slide_Presentation.pdf` via `pypdf`: exactly 10 pages,
+        4.2 MB, valid PDF 1.4 specification.
+
 commit 3c7a912
 Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
 Date:   2026-10-16 21:23:00 +0530
