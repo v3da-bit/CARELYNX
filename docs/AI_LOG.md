@@ -11,6 +11,29 @@
 ## Task Commit History
 
 ```text
+commit 3a9e102
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-16 11:27:00 +0530
+
+    fix(security & csp): permit Google APIs and Firebase Auth iframes in Content-Security-Policy
+
+    - Context / Problem addressed:
+      1. Browser threw CSP error when loading `https://apis.google.com/js/api.js?onload=__iframefcb...`
+         injected by Firebase Auth / Google client runtime.
+      2. `apps/web/next.config.ts` had strict CSP headers that omitted `https://apis.google.com`
+         from `script-src` and lacked a `frame-src` directive, causing the browser to fall back
+         to `default-src 'self'` and block the Firebase Auth helper iframe.
+    - Architectural decisions & changes made:
+      1. Updated `Content-Security-Policy` header in `apps/web/next.config.ts`:
+         - `script-src`: added `https://apis.google.com`, `https://*.gstatic.com`, `https://*.firebaseapp.com`.
+         - `frame-src`: added `'self'`, `https://*.firebaseapp.com`, `https://apis.google.com`, `https://accounts.google.com`.
+         - `img-src`: added `https://*.googleusercontent.com`, `https://*.gstatic.com`.
+    - Verification & Testing:
+      - `npm run build` in `apps/web`: 10/10 static pages compiled successfully in 341ms.
+    - Files created / modified:
+      - apps/web/next.config.ts
+      - docs/AI_LOG.md
+
 commit 8e6c2d1
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 11:24:00 +0530
