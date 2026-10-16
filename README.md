@@ -1,295 +1,325 @@
 # CARELYNX — Healthcare Document Intelligence & Clearer Discharge Instructions
 
 > **"Make one part of the patient journey safer, clearer, and easier after discharge."**  
-> CARELYNX converts dense, fragmented discharge paperwork into clear, evidence-linked, multilingual care plans while exposing uncertainty and routing ambiguous cases to human review.
+> CARELYNX converts dense, fragmented discharge paperwork into clear, evidence-linked, patient-friendly care plans while exposing clinical uncertainty and routing ambiguous cases to human clinical review.
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.1.0-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-16.0-black.svg?logo=next.js)](https://nextjs.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.142.2-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3.8-black.svg?logo=next.js)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19.2.8-61DAFB.svg?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg?logo=typescript)](https://www.typescriptlang.org)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC.svg?logo=tailwind-css)](https://tailwindcss.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS%20v4-38B2AC.svg?logo=tailwind-css)](https://tailwindcss.com)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.1.3-D71F00.svg)](https://www.sqlalchemy.org)
 [![AMD ROCm](https://img.shields.io/badge/AMD-ROCm%20vLLM-ED1C24.svg?logo=amd)](https://rocm.docs.amd.com)
 
 ---
 
 ## 1. The Core Problem & Product Vision
 
-When patients leave the hospital, they typically receive voluminous paperwork: multi-page discharge summaries, handwritten or printed prescriptions, and lab results.
+When leaving a hospital, patients routinely receive thick packets of discharge paperwork: multi-page hospital summaries, printed or handwritten prescription slips, laboratory diagnostic sheets, and follow-up consultation notes.
 
 This paperwork is frequently:
-- **Long & Fragmented:** Critical instructions are dispersed across multiple pages and documents.
-- **Clinically Dense:** Written in medical jargon and abbreviations inaccessible to patients.
-- **Inconsistent:** Different documents from the same hospital encounter may state conflicting follow-up dates or instructions.
-- **Linguistically Inaccessible:** Rarely provided in the patient's native or preferred language.
+- **Fragmented & Disorganized:** Vital recovery instructions and warnings are scattered across multiple disparate pages and documents.
+- **Clinically Dense:** Packed with medical jargon, abbreviations, and clinical shorthand that patients and family caregivers struggle to interpret.
+- **Inconsistent & Conflicting:** Different papers from the same hospital admission frequently state contradictory medication dosages, instructions, or follow-up appointment dates.
+- **Linguistically Inaccessible:** Almost exclusively issued in English or clinical medical terminology, creating severe safety risks for non-English speakers.
 
-### CARELYNX's Solution
-CARELYNX acts as an **information-navigation and patient-communication intelligence layer**:
-1. **Intakes Documents:** Validates and stores discharge summaries, prescriptions, and lab records.
-2. **Page-Aware Processing:** Segments text by page and runs OCR on scanned records with text quality scoring.
-3. **Structured Fact Extraction:** Identifies explicit follow-up dates, medications, instructions, and warnings.
-4. **Verbatim Evidence Linking:** Every statement links directly to its source document, page, and excerpt snippet.
-5. **Conflict & Uncertainty Detection:** If two documents state conflicting dates, the system flags the contradiction and escalates it to human review rather than guessing.
-6. **Patient Care Plan:** Displays an intuitive chronological timeline, categorized care instructions, and multilingual toggles (English, Hindi, Gujarati, Marathi, Tamil, Telugu).
-7. **Clinical Reviewer Workspace:** Provides staff with a side-by-side document comparator to resolve ambiguities.
+### How CARELYNX Solves This
+CARELYNX operates as an **evidence-linked clinical intelligence and patient communication layer**:
+1. **Multi-Format Ingestion:** Ingests discharge summaries, prescriptions, and lab records (PDF, PNG, JPEG) with strict magic-byte validation and secure local storage.
+2. **Page-Aware Processing & OCR:** Extracts text page-by-page, running high-accuracy OCR on scanned or photographic records alongside automated text quality scoring.
+3. **Structured Clinical Extraction:** Identifies explicit follow-up dates, scheduled appointments, prescribed medications, home-care instructions, and red-flag warning signs.
+4. **Verbatim Evidence Linking:** Every single extracted fact links directly to its source document, page number, and exact text snippet.
+5. **Conflict & Uncertainty Detection:** If two documents state conflicting dates or dosages, CARELYNX flags the contradiction immediately and escalates it to a human clinician rather than guessing.
+6. **Patient Care Plan:** Visualizes an intuitive chronological timeline, structured recovery checklist, and one-click multilingual toggles (English, Hindi, Gujarati, Marathi, Tamil, Telugu).
+7. **Clinical Reviewer Workspace:** Equips medical staff with an interactive side-by-side document comparator to review, verify, edit, or reject flagged ambiguities.
 
 ---
 
 ## 2. Strict Safety Boundaries & Non-Goals
 
-To prevent clinical risk, CARELYNX enforces ironclad safety guardrails:
-- ❌ **Zero Autonomous Diagnosis:** Will never interpret symptoms or test results as a medical diagnosis.
-- ❌ **Zero Treatment Recommendations:** Will never propose new therapies, medications, or clinical interventions.
-- ❌ **Zero Dosage Alterations:** Will never modify, recalculate, or interpret medication dosages.
-- ❌ **Zero Hallucinated Fallbacks:** If a document lacks evidence or is invalid, the system refuses to invent facts.
-- ❌ **Zero Heuristic Tie-Breaking:** If documents conflict, the system never picks a "winner" automatically; it requires human clinical review.
+To prevent patient harm and clinical risk, CARELYNX enforces ironclad safety guardrails:
 
-> **Golden Rule:** If the system cannot support an extracted statement directly from source document evidence, it **must not** present that statement as a verified fact.
+- ❌ **Zero Autonomous Diagnosis:** Never infers, guesses, or suggests clinical conditions or medical diagnoses from symptoms or lab values.
+- ❌ **Zero Treatment Recommendations:** Never suggests new medications, alternative therapies, or unprescribed clinical interventions.
+- ❌ **Zero Dosage Alterations:** Never recalculates, rounds, or alters medication dosages or frequencies.
+- ❌ **Zero Hallucinated Fallbacks:** If a record lacks clear evidence or cannot be verified, the system refuses to extrapolate fake medical details.
+- ❌ **Zero Heuristic Tie-Breaking:** If two documents state conflicting instructions, the system never arbitrarily picks a "winner"; it escalates the conflict directly to human clinical review.
+
+> **Golden Safety Rule:** If the system cannot support an extracted statement directly from verbatim source document evidence, it **must never** present that statement as a verified fact.
 
 ---
 
-## 3. High-Level Architecture
+## 3. System Architecture
 
 ```text
-                           ┌────────────────────────────┐
-                           │      Next.js Frontend      │
-                           │   (App Router, TS, Tailwind)│
-                           │    Patient & Reviewer UI   │
-                           └─────────────┬──────────────┘
-                                         │ REST (JSON)
-                                         ▼
-                           ┌────────────────────────────┐
-                           │      FastAPI Backend       │
-                           │  (App Factory, Security)   │
-                           └─────────────┬──────────────┘
-                                         │
-        ┌────────────────────────────────┼────────────────────────────────┐
-        ▼                                ▼                                ▼
- ┌──────────────┐               ┌──────────────────┐             ┌─────────────────┐
- │ Document API │               │    Cases API     │             │   Reviews API   │
- └──────┬───────┘               └────────┬─────────┘             └────────┬────────┘
-        │                                │                                │
-        ▼                                ▼                                ▼
- ┌──────────────┐               ┌──────────────────┐             ┌─────────────────┐
- │StorageBackend│               │    SQLAlchemy    │             │   Review Queue  │
- │(Local/Cloud) │               │   Repositories   │             │   & Audit Log   │
- └──────┬───────┘               └────────┬─────────┘             └─────────────────┘
-        │                                │
-        │               ┌────────────────┴────────────────┐
-        │               ▼                                 ▼
-        │        SQLite (Local Dev)             PostgreSQL (Docker/Prod)
-        │
-        ▼
- ┌────────────────────────────────────────────────────────────────────────────────┐
- │                          Document Processing Pipeline                          │
- │                                                                                │
- │   ┌───────────────┐        ┌───────────────────┐       ┌───────────────────┐   │
- │   │  PDF Extractor│───────▶│ OCR Adapter Engine│──────▶│ Text Quality Score│   │
- │   └───────────────┘        └───────────────────┘       └─────────┬─────────┘   │
- │                                                                  │             │
- │                                                                  ▼             │
- │   ┌───────────────┐        ┌───────────────────┐       ┌───────────────────┐   │
- │   │ Safety Engine │◀───────│  Evidence Engine  │◀──────│InferenceProvider  │   │
- │   │(Conflicts/Pol)│        │(Verbatim Matcher) │       │(Rule-Based / ROCm)│   │
- │   └───────┬───────┘        └───────────────────┘       └───────────────────┘   │
- │           │                                                                    │
- │           ▼                                                                    │
- │   ┌───────────────┐        ┌───────────────────┐                               │
- │   │ Care Plan Gen │───────▶│Translation Service│                               │
- │   └───────────────┘        │  (en / hi / gu)   │                               │
- │                            └───────────────────┘                               │
- └────────────────────────────────────────────────────────────────────────────────┘
+                            ┌────────────────────────────────────┐
+                            │          Next.js Frontend          │
+                            │      (App Router, React 19)        │
+                            │  Patient & Clinical Reviewer UI    │
+                            └─────────────────┬──────────────────┘
+                                              │ REST (JSON)
+                                              ▼
+                            ┌────────────────────────────────────┐
+                            │          FastAPI Backend           │
+                            │     (Python 3.10+, Security)       │
+                            └─────────────────┬──────────────────┘
+                                              │
+         ┌────────────────────────────────────┼────────────────────────────────────┐
+         ▼                                    ▼                                    ▼
+  ┌──────────────┐                     ┌──────────────┐                     ┌──────────────┐
+  │ Document API │                     │  Cases API   │                     │ Reviews API  │
+  └──────┬───────┘                     └──────┬───────┘                     └──────┬───────┘
+         │                                    │                                    │
+         ▼                                    ▼                                    ▼
+  ┌──────────────┐                     ┌──────────────┐                     ┌──────────────┐
+  │PrivateStore  │                     │  SQLAlchemy  │                     │ Review Queue │
+  │(Local / S3)  │                     │ Repositories │                     │ & Audit Log  │
+  └──────┬───────┘                     └──────┬───────┘                     └──────────────┘
+         │                                    │
+         │                     ┌──────────────┴──────────────┐
+         │                     ▼                             ▼
+         │              SQLite (Local)             PostgreSQL (Production)
+         ▼
+  ┌────────────────────────────────────────────────────────────────────────────────────────┐
+  │                              Document Processing Pipeline                              │
+  │                                                                                        │
+  │   ┌───────────────┐        ┌───────────────────┐        ┌──────────────────────────┐   │
+  │   │ PDF Extractor │───────▶│ OCR Adapter Engine│───────▶│   Text Quality Scorer    │   │
+  │   └───────────────┘        └───────────────────┘        └────────────┬─────────────┘   │
+  │                                                                      │                 │
+  │                                                                      ▼                 │
+  │   ┌───────────────┐        ┌───────────────────┐        ┌──────────────────────────┐   │
+  │   │ Safety Engine │◀───────│  Evidence Engine  │◀───────│    Inference Provider    │   │
+  │   │(Conflict/Pol) │        │ (Verbatim Matcher)│        │(Rule-Based / ROCm / vLLM)│   │
+  │   └───────┬───────┘        └───────────────────┘        └──────────────────────────┘   │
+  │           │                                                                            │
+  │           ▼                                                                            │
+  │   ┌───────────────┐        ┌───────────────────┐                                       │
+  │   │ Care Plan Gen │───────▶│Translation Service│                                       │
+  │   └───────────────┘        │ (6 Indian Langs)  │                                       │
+  │                            └───────────────────┘                                       │
+  └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Team Structure & AI Collaboration
+## 4. Technology Stack
 
-CARELYNX is built by a team of **3 developers** who pair-program with AI assistants:
-
-| Member | Role | Primary Focus | Team Charter |
-|---|---|---|---|
-| **Member 1** | **Lead Frontend Developer** | `apps/web` (Next.js, Tailwind, React 19, UX polish, accessibility) | [`docs/TEAM.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/TEAM.md) |
-| **Member 2** | **Lead Backend Engineer** | `apps/api` (FastAPI, SQLAlchemy, SQLite/Postgres, Storage, Security) | [`docs/TEAM.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/TEAM.md) |
-| **Member 3** | **Lead AI & QA Engineer** | `apps/api/app/ai`, Safety, AMD ROCm integration, Evaluation benchmarks | [`docs/TEAM.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/TEAM.md) |
-
-### Guidelines for AI Coding Assistants
-Any AI assisting with this repository **must**:
-1. Review [`docs/AI_INSTRUCTIONS.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/AI_INSTRUCTIONS.md) prior to writing code.
-2. Maintain strict fidelity to established project goals without introducing conceptual drift.
-3. Append a git-commit formatted log entry to [`docs/AI_LOG.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/AI_LOG.md) upon completing tasks.
+| Layer | Technologies | Rationale |
+|---|---|---|
+| **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Lucide Icons | High-performance server/client rendering, responsive mobile/desktop design, strict CSP headers. |
+| **Backend API** | FastAPI, Python 3.10+, Pydantic v2, Uvicorn, Python-Multipart | Asynchronous, typed endpoints, automated OpenAPI documentation, sub-millisecond route dispatching. |
+| **Database** | SQLAlchemy 2.0 declarative models, Alembic migrations | Dual compatibility: Zero-config SQLite for local development; PostgreSQL for production deployments. |
+| **Document Processing** | PyPDF, Tesseract OCR, Pillow | Secure extraction of multi-page PDF documents and photographic image scans with quality scoring. |
+| **Inference Engine** | Pluggable: `rule_based` (default), `openai_compat` (AMD ROCm / vLLM / NVIDIA / Cloud) | Zero-cost deterministic rule-based extractor by default; seamless high-throughput GPU inference when available. |
+| **Multilingual** | Deep-Translator & Google Cloud Translation v2 API | Translates verified patient guidance into Hindi, Gujarati, Marathi, Tamil, and Telugu with entity masking. |
+| **Authentication** | Firebase Auth (client) + JWT verification (API) | Secure token verification with deterministic UUID user mapping and isolated patient data scopes. |
 
 ---
 
-## 5. Complete Documentation Index (`/docs`)
+## 5. Prerequisites
 
-All architectural specifications, contracts, and guidelines are maintained under [`/docs`](file:///home/common/Documents/Carelynx/CARELYNX/docs):
-
-| Document | Purpose & Description |
-|---|---|
-| [`docs/PRD.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/PRD.md) | **Product Requirements Document:** Vision, personas, MVP scope, non-goals, and success metrics. |
-| [`docs/SRS.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/SRS.md) | **Software Requirements Specification:** Functional & non-functional requirements, data validation, and error taxonomy. |
-| [`docs/ARCHITECTURE.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/ARCHITECTURE.md) | **System Architecture:** Detailed component breakdown, AMD ROCm vLLM runtime, and database entity relationships. |
-| [`docs/TEAM.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/TEAM.md) | **Team Charter:** Member roles (Frontend, Backend, AI/QA), domain ownership, and member instructions. |
-| [`docs/AI_INSTRUCTIONS.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/AI_INSTRUCTIONS.md) | **AI Pre-Flight Manual:** Mandatory onboarding rules, safety boundaries, and task execution loops for AI coding agents. |
-| [`docs/AI_LOG.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/AI_LOG.md) | **AI Task Log:** Git-commit formatted record of all engineering tasks performed by AI assistants. |
-| [`docs/API_CONTRACTS.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/API_CONTRACTS.md) | **API Contracts:** Complete JSON schemas, headers, error contracts, and endpoints for all routes. |
-| [`docs/DATABASE.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/DATABASE.md) | **Database Specification:** PostgreSQL & SQLite schemas, UUID keys, UTC timestamps, and migration commands. |
-| [`docs/SAFETY.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/SAFETY.md) | **Safety Guardrails:** Verbatim evidence rules, conflict triggers, OCR handling, and translation constraints. |
-| [`docs/DEVELOPMENT_PLAN.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/DEVELOPMENT_PLAN.md) | **Development Roadmap:** Progress tracking across implementation phases (Bootstrap to Demo Hardening). |
-| [`docs/IMPLEMENTATION_PLAN.md`](file:///home/common/Documents/Carelynx/CARELYNX/docs/IMPLEMENTATION_PLAN.md) | **Implementation Assessment:** Architectural decision records (ADR) and technology evaluation. |
-
----
-
-## 6. Quickstart & Cross-Platform Setup Guide
-
-CARELYNX runs out-of-the-box on **Windows**, **macOS**, and **Linux** with automated cross-platform runners.
-
-### 6.1 Prerequisites
-- **Node.js:** v18+ (v20+ recommended)
-- **Python:** 3.10+ (tested with Python 3.12)
+Before installing, ensure your system has:
+- **Python:** Version 3.10 or higher (Python 3.12 recommended).
+- **Node.js:** Version 18 or higher (Node.js 20+ recommended) and `npm`.
 - **Git**
 
-### 6.2 1-Command Automated Setup & Run (Recommended)
+---
 
-#### On Any OS (Windows, macOS, Linux):
-```bash
-# 1. Clone & enter directory
-git clone <repo-url>
-cd CARELYNX
+## 6. Single-Command Setup & Startup
 
-# 2. Create your local config (never commit .env)
-cp .env.example .env          # Windows: copy .env.example .env
+CARELYNX includes unified single-file setup and startup scripts that automate the entire workflow across **Linux**, **macOS**, and **Windows**.
 
-# 3. Automated setup (creates venv, installs Python & Node packages, runs DB migrations, generates sample PDFs)
-python run.py setup
+### 6.1 Step 1: Automated Dependency Setup (Run Once)
 
-# 4. Start both backend (FastAPI) and frontend (Next.js) concurrently
-python run.py dev
-```
+The setup script automatically:
+- Creates your local `.env` configuration from `.env.example` (if not present).
+- Configures the Python virtual environment in `apps/api/.venv`.
+- Downloads and installs all backend Python dependencies (FastAPI, SQLAlchemy, Alembic, ReportLab, PyPDF, etc.).
+- Downloads and installs all frontend Node.js packages (Next.js, React 19, Tailwind, Lucide, Firebase).
+- Executes Alembic database migrations.
+- Generates realistic sample discharge and conflict PDFs for immediate offline testing.
 
-#### OS-Specific Shortcuts:
-- **Windows (Command Prompt):**
-  ```cmd
-  run_dev.bat
-  ```
-- **Windows (PowerShell):**
-  ```powershell
-  .\run_dev.ps1
-  ```
-- **macOS / Linux (Bash / Zsh):**
-  ```bash
-  ./run_dev.sh
-  ```
+**Execute the setup command for your operating system:**
+
+| Operating System | Single Command |
+|---|---|
+| **Linux / macOS (Bash)** | `./setup.sh` |
+| **Windows (Command Prompt)** | `setup.bat` |
+| **Windows (PowerShell)** | `.\setup.ps1` |
+| **Cross-Platform (Python)** | `python run.py setup` |
 
 ---
 
-### 6.3 Dedicated Service Commands
+### 6.2 Step 2: Automated Startup (Start Full Stack)
 
-You can also run individual services independently on any OS:
+The startup script concurrently boots the FastAPI backend on port 8000 and the Next.js frontend on port 3000 with unified colorized logging and clean CTRL+C shutdown:
+
+| Operating System | Single Command |
+|---|---|
+| **Linux / macOS (Bash)** | `./run_dev.sh` |
+| **Windows (Command Prompt)** | `run_dev.bat` |
+| **Windows (PowerShell)** | `.\run_dev.ps1` |
+| **Cross-Platform (Python)** | `python run.py dev` |
+
+> [!TIP]
+> **Zero-Friction Auto-Setup:** If you run `./run_dev.sh` before running setup, it will automatically detect the missing virtual environment and run the full setup for you before starting the services!
+
+---
+
+## 7. Application Access Points & URLs
+
+Once started, access the application in your browser:
+
+| Service / Interface | URL | Description |
+|---|---|---|
+| **Patient Care Portal** | [http://localhost:3000](http://localhost:3000) | Document upload, processing status, timeline, medication schedule, multilingual switch, voice readout. |
+| **Clinical Reviewer Workspace** | [http://localhost:3000/review](http://localhost:3000/review) | Triage queue, side-by-side document comparator, conflict adjudication, fact verification. |
+| **API Interactive Swagger UI** | [http://localhost:8000/docs](http://localhost:8000/docs) | OpenAPI 3.0 interactive documentation and test console for all backend REST endpoints. |
+| **Backend Health Check** | [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) | Real-time diagnostic status for database connection, hardware provider, and inference engine. |
+
+---
+
+## 8. Granular Service Commands & Testing
+
+For specialized workflows, you can control services independently:
 
 ```bash
-python run.py api              # Start FastAPI backend only (http://localhost:8000)
-python run.py web              # Start Next.js frontend only (http://localhost:3000)
-python run.py test             # Run backend test suite
-python run.py generate-samples # Generate sample discharge PDFs
+# Start FastAPI backend server only (http://localhost:8000)
+python run.py api
+
+# Start Next.js frontend server only (http://localhost:3000)
+python run.py web
+
+# Run complete backend unit and integration test suite (143+ tests)
+python run.py test
+
+# Run full end-to-end QA probe and security vulnerability suite
+python qa_test_suite.py
+
+# Generate sample medical records and conflicting prescriptions
+python run.py generate-samples
 ```
 
 ---
 
-### 6.4 Manual Step-by-Step Setup
+## 9. Configuration & Security
 
-If you prefer running services manually in separate terminals:
+CARELYNX ships with sensible defaults that require **zero configuration** for local development.
 
-#### 0. Configuration
+### Local Environment Setup
+When setup runs, it creates `.env` from `.env.example`:
 ```bash
-cp .env.example .env          # Windows: copy .env.example .env
-```
-Defaults work as-is (SQLite, `rule_based` extraction). Optionally set `GOOGLE_TRANSLATE_API_KEY` for reliable Hindi/Gujarati/Marathi/Tamil/Telugu translation.
-
-#### 1. Backend (FastAPI)
-```bash
-cd apps/api
-# Linux / macOS:
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Windows:
-# python -m venv .venv
-# .venv\Scripts\activate
-
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cp .env.example .env    # Created automatically by ./setup.sh
 ```
 
-#### 2. Frontend (Next.js)
-```bash
-cd apps/web
-npm install
-npm run dev -- -H 0.0.0.0
-```
+### Key Environment Options
+| Variable | Default | Purpose |
+|---|---|---|
+| `ENVIRONMENT` | `development` | App environment (`development` / `production`). |
+| `DATABASE_URL` | *(empty = SQLite)* | Set to `postgresql+psycopg://user:pass@host:5432/db` for PostgreSQL. |
+| `CORS_ORIGINS` | `http://localhost:3000` | Allowed web frontend origin(s). |
+| `INFERENCE_PROVIDER` | `rule_based` | `rule_based` (local, zero-cost) or `openai_compat` (GPU / vLLM / Cloud). |
+| `INFERENCE_BASE_URL` | `http://localhost:8080/v1` | Endpoint URL for `openai_compat` inference. |
+| `INFERENCE_MODEL` | `Qwen/Qwen2.5-7B-Instruct` | Model identifier passed to inference server. |
+| `GOOGLE_TRANSLATE_API_KEY` | *(optional)* | Optional Google Cloud Translation v2 key for high-throughput Indian language translation. |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000/api/v1` | URL where the web client accesses the backend. |
 
-Open your browser to:
-- **Patient Dashboard:** [http://localhost:3000](http://localhost:3000)
-- **Clinical Reviewer Workspace:** [http://localhost:3000/review](http://localhost:3000/review)
-- **API Documentation (Swagger UI):** [http://localhost:8000/docs](http://localhost:8000/docs)
+> [!IMPORTANT]
+> **Security & Privacy Commitment:**  
+> - `.env` is permanently excluded from version control via `.gitignore`.
+> - Never commit private API keys, database passwords, or personal credentials.
+> - Patient documents uploaded during testing are stored in private local folders (`apps/api/var/storage/`) that are strictly excluded from git tracking.
 
 ---
 
-## 7. Deployment with Docker (any host)
+## 10. Production Deployment
 
-One `docker-compose.yml` runs the whole stack on any machine with Docker: a laptop, a VM, a cloud server or an AMD GPU box.
+CARELYNX is architected for simple deployment to modern cloud platforms:
+
+### Option A: Railway (Backend) + Vercel (Frontend)
+1. **Backend on Railway:**
+   - Deploy `apps/api` using Railway's PostgreSQL template and Nixpacks/Dockerfile.
+   - Configure environment variables using `apps/api/.env.railway.example`.
+2. **Frontend on Vercel:**
+   - Deploy `apps/web` to Vercel with root directory set to `apps/web`.
+   - Set `NEXT_PUBLIC_API_BASE_URL` to your live Railway backend URL.
+
+### Option B: Docker Compose (Self-Hosted / GPU Box)
+A production-ready `docker-compose.yml` runs the entire stack (Caddy reverse proxy with automatic HTTPS, Next.js frontend, FastAPI backend, and PostgreSQL 16):
+
+```bash
+# 1. Prepare configuration
+cp .env.example .env
+
+# 2. Start full stack (CPU / Rule-Based)
+docker compose up -d --build
+
+# 3. Start with AMD ROCm vLLM GPU acceleration (requires AMD GPU with ROCm)
+docker compose --profile amd up -d --build
+
+# 4. Start with NVIDIA CUDA GPU acceleration
+docker compose --profile nvidia up -d --build
+```
+
+---
+
+## 11. Project Directory Structure
 
 ```text
-browser ──▶ proxy (Caddy :80/:443) ──┬── /api/*  ──▶ api (FastAPI) ──▶ db (Postgres 16)
-                                     │                    └──▶ llm (vLLM, optional GPU profile)
-                                     └── /*      ──▶ web (Next.js standalone)
-```
-
-Only the proxy is published. The web app calls the API at the relative path `/api/v1`, so the same images work on `localhost`, a LAN IP or a domain without rebuilding.
-
-### 7.1 Run it
-
-```bash
-cp .env.example .env          # then edit: POSTGRES_PASSWORD (required for anything public), optional keys
-docker compose up -d --build  # proxy + web + api + postgres, rule_based extraction (no GPU needed)
-```
-
-Open `http://<host>` (or `http://<host>:HTTP_PORT` if you changed `HTTP_PORT`). Database migrations run automatically when the API container starts. Uploaded documents and the database live in the `docstore` and `pgdata` volumes.
-
-| Setting (`.env`) | Purpose |
-|---|---|
-| `SITE_ADDRESS` | Empty → plain HTTP. A domain (e.g. `carelynx.example.com`) → automatic HTTPS via Let's Encrypt; its DNS must point at the host and ports 80/443 must be open. |
-| `HTTP_PORT` / `HTTPS_PORT` | Host ports for the proxy (default 80 / 443). |
-| `POSTGRES_PASSWORD` | Change it before exposing the host. |
-| `GOOGLE_TRANSLATE_API_KEY` | Reliable Hindi/Gujarati/Marathi/Tamil/Telugu translation (see §6). |
-| `REGISTRY` / `TAG` | Image names, for `docker compose build && docker compose push` to your registry; the target host then only needs `docker compose pull && docker compose up -d`. |
-
-### 7.2 Add the LLM (GPU)
-
-The `llm` service is opt-in through a profile. It serves `Qwen/Qwen2.5-7B-Instruct` with vLLM, which needs a GPU with about 24 GB of memory or more.
-
-| Host | Command | `.env` |
-|---|---|---|
-| AMD GPU (ROCm, Linux, `/dev/kfd` + `/dev/dri`) | `docker compose --profile amd up -d --build` | `INFERENCE_PROVIDER=openai_compat`, `INFERENCE_HARDWARE_LABEL=amd-rocm-vllm` |
-| NVIDIA GPU (NVIDIA Container Toolkit) | `docker compose --profile nvidia up -d --build` | `INFERENCE_PROVIDER=openai_compat`, `INFERENCE_HARDWARE_LABEL=nvidia-cuda-vllm` |
-| No GPU | `docker compose up -d --build` | leave `INFERENCE_PROVIDER=rule_based` |
-
-- The first start downloads about 15 GB of model weights into the `hf_cache` volume, so the LLM takes a while to become healthy.
-- Until then, and whenever the LLM is unreachable, the API falls back to `rule_based` and records that provenance honestly on each fact.
-- Benchmark on the GPU host with `python infra/amd/benchmark_rocm.py` (see [`infra/amd/README.md`](infra/amd/README.md)). It labels results "AMD" only when `rocm-smi`/`amd-smi` detect an AMD GPU. **No AMD run has been recorded yet**; the numbers measured so far are the CPU rule-based baseline.
-- To run vLLM on a separate GPU machine instead, start it there with `docker compose -f infra/amd/docker-compose.rocm.yml up -d` and set `DOCKER_INFERENCE_BASE_URL=http://<gpu-host>:8080/v1` on the app host.
-
-### 7.3 Operate
-
-```bash
-docker compose ps                 # health of every service
-docker compose logs -f api        # follow API logs
-docker compose up -d --build      # deploy a new version (migrations run on start)
-docker compose down               # stop (volumes, i.e. data, are kept)
+CARELYNX/
+├── apps/
+│   ├── api/                          # FastAPI Backend Application
+│   │   ├── alembic/                  # Database migration scripts
+│   │   ├── app/                      # Application core, models, schemas, and routes
+│   │   │   ├── api/v1/               # REST endpoint handlers (cases, documents, reviews)
+│   │   │   ├── core/                 # Auth, config, security, and exception handlers
+│   │   │   ├── models/               # SQLAlchemy declarative ORM models
+│   │   │   ├── schemas/              # Pydantic validation schemas
+│   │   │   └── services/             # Pipeline, OCR, evidence, and safety engines
+│   │   ├── tests/                    # 143+ unit, integration, and safety tests
+│   │   ├── Dockerfile                # Production container specification
+│   │   └── requirements.txt          # Backend Python dependencies
+│   └── web/                          # Next.js Frontend Web Application
+│       ├── app/                      # Next.js App Router (pages, layout, styles)
+│       │   ├── page.tsx              # Patient Care Portal & timeline
+│       │   └── review/page.tsx       # Clinical Reviewer Workspace
+│       ├── lib/                      # API client, Firebase auth, helper utilities
+│       ├── public/                   # Favicons, logos, and web manifest
+│       └── package.json              # Frontend Node.js dependencies
+├── docs/                             # Complete architecture & clinical safety specs
+├── infra/                            # Hardware benchmarks and GPU orchestration (AMD/NVIDIA)
+├── requirements.txt                  # Unified root Python dependency manifest
+├── run.py                            # Cross-platform CLI runner and task engine
+├── setup.sh                          # Single-command setup (Linux / macOS)
+├── setup.bat                         # Single-command setup (Windows CMD)
+├── setup.ps1                         # Single-command setup (Windows PowerShell)
+├── run_dev.sh                        # Single-command startup (Linux / macOS)
+├── run_dev.bat                       # Single-command startup (Windows CMD)
+├── run_dev.ps1                       # Single-command startup (Windows PowerShell)
+└── docker-compose.yml                # Multi-container orchestration (Caddy + API + Web + DB)
 ```
 
 ---
 
-## 8. License
+## 12. Complete Documentation Reference (`/docs`)
+
+For in-depth architectural and safety specifications, consult the documents in [`docs/`](docs/):
+
+| Document | Description |
+|---|---|
+| [`docs/PRD.md`](docs/PRD.md) | **Product Requirements Document:** Vision, personas, MVP scope, and clinical non-goals. |
+| [`docs/SRS.md`](docs/SRS.md) | **Software Requirements Specification:** Functional requirements (FR-001–FR-017) and error taxonomy. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | **System Architecture:** Detailed component design, AMD ROCm integration, and database ERD. |
+| [`docs/SAFETY.md`](docs/SAFETY.md) | **Safety Guardrails:** Verbatim evidence linking invariants, conflict triggers, and OCR policies. |
+| [`docs/API_CONTRACTS.md`](docs/API_CONTRACTS.md) | **API Contracts:** Request/response schemas, role headers, and error definitions for all endpoints. |
+| [`docs/DATABASE.md`](docs/DATABASE.md) | **Database Specification:** Entity schemas, UUID types, UTC timestamps, and migration instructions. |
+| [`docs/TEAM.md`](docs/TEAM.md) | **Team Charter:** Role responsibilities (Frontend, Backend, AI/QA) and domain ownership. |
+| [`docs/AI_INSTRUCTIONS.md`](docs/AI_INSTRUCTIONS.md) | **AI Agent Operating Rules:** Operating rules and pre-flight checklist for pair programming agents. |
+| [`docs/AI_LOG.md`](docs/AI_LOG.md) | **AI Development Log:** Immutable audit trail of engineering tasks and commits. |
+
+---
+
+## 13. License
 
 Internal Hackathon Project. All rights reserved.

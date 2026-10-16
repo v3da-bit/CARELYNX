@@ -11,3 +11,8 @@ httpx==0.28.1
 deep-translator==1.11.4
 pytesseract==0.3.13
 Pillow==12.3.0
+reportlab==5.0.1
+requests>=2.31.0
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+

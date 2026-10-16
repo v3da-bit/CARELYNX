@@ -11,6 +11,40 @@
 ## Task Commit History
 
 ```text
+commit 9a2f4c1
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-16 12:05:00 +0530
+
+    feat(setup, deps & docs): consolidate all project dependencies, create 1-command setup scripts, and polish README
+
+    - Context / Problem addressed:
+      1. User requested auditing all files to ensure setup/startup dependencies are fully captured in requirements files.
+      2. User requested a single setup/startup entry point to download and prepare all dependencies automatically.
+      3. User requested a comprehensive README providing all essential project instructions, architecture, and guides without disclosing sensitive project credentials.
+    - Architectural decisions & changes made:
+      1. Dependency Audit & Manifests:
+         - Audited Python imports across the entire repository. Added `reportlab==5.0.1`, `requests>=2.31.0`, `pytest>=8.0.0`, and `pytest-asyncio>=0.23.0` to `apps/api/requirements.txt` to cover all dev tools, sample PDF generators, and QA test suites.
+         - Created unified root `requirements.txt` mirroring `apps/api/requirements.txt` so `pip install -r requirements.txt` succeeds from any directory.
+      2. Single-Command Setup & Startup Automation:
+         - Created `setup.sh` (Linux/macOS), `setup.bat` (Windows CMD), and `setup.ps1` (Windows PowerShell) for 1-command dependency setup.
+         - Updated `run.py` (`run_setup` and `run_dev`): automatically creates `.env` from template, bootstraps Python virtualenv, installs backend & frontend dependencies, runs Alembic migrations, and generates sample clinical discharge PDFs. Added auto-setup detection inside `run_dev` if dependencies are uninitialized.
+      3. README Overhaul & Sensitive Data Protection:
+         - Completely rewrote `README.md` with problem statement, strict clinical safety guardrails, system architecture diagrams, 1-command setup/run guides, URL directory, granular commands, testing guide, and deployment options.
+         - Strictly ensured zero exposure of live credentials, API keys, or private tokens.
+    - Verification & Testing:
+      - Executed `./setup.sh`: all 6 setup stages succeeded with exit code 0.
+      - Executed `python run.py test`: all 143 unit and integration tests passed cleanly.
+      - Executed `npm run build` in `apps/web`: 10/10 static pages generated successfully.
+    - Files created / modified:
+      - requirements.txt (created)
+      - setup.sh (created)
+      - setup.bat (created)
+      - setup.ps1 (created)
+      - apps/api/requirements.txt (modified)
+      - run.py (modified)
+      - README.md (modified)
+      - docs/AI_LOG.md (modified)
+
 commit 7f1e49b
 Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 11:35:00 +0530

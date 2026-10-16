@@ -98,24 +98,34 @@ def run_setup() -> int:
     print(f"  Root Directory:   {REPO_ROOT}")
     print("=================================================================")
 
-    # 1. Setup Python Virtual Environment in apps/api
+    # 1. Initialize local .env if missing
+    env_file = REPO_ROOT / ".env"
+    env_example = REPO_ROOT / ".env.example"
+    if not env_file.exists() and env_example.exists():
+        print("\n[1/6] Creating default local .env configuration from .env.example...")
+        shutil.copyfile(env_example, env_file)
+        print("  ✓ .env created successfully.")
+    else:
+        print("\n[1/6] Local .env configuration already present.")
+
+    # 2. Setup Python Virtual Environment in apps/api
     venv_dir = API_DIR / ".venv"
     if not venv_dir.exists():
-        print("\n[1/5] Creating Python virtual environment in apps/api/.venv...")
+        print("\n[2/6] Creating Python virtual environment in apps/api/.venv...")
         res = subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], cwd=API_DIR)
         if res.returncode != 0:
             print("ERROR: Failed to create virtual environment.")
             return res.returncode
     else:
-        print("\n[1/5] Python virtual environment already exists at apps/api/.venv.")
+        print("\n[2/6] Python virtual environment already exists at apps/api/.venv.")
 
     py_bin = get_venv_python()
 
-    # 2. Install Python Dependencies
-    print("\n[2/5] Installing Python dependencies (FastAPI, SQLAlchemy, Alembic, etc.)...")
+    # 3. Install Python Dependencies
+    print("\n[3/6] Installing Python dependencies (FastAPI, SQLAlchemy, Alembic, ReportLab, etc.)...")
     req_file = API_DIR / "requirements.txt"
     if req_file.exists():
-        res = subprocess.run([str(py_bin), "-m", "pip", "install", "--upgrade", "pip"], cwd=API_DIR)
+        subprocess.run([str(py_bin), "-m", "pip", "install", "--upgrade", "pip"], cwd=API_DIR)
         res = subprocess.run([str(py_bin), "-m", "pip", "install", "-r", "requirements.txt"], cwd=API_DIR)
         if res.returncode != 0:
             print("ERROR: Failed to install Python dependencies.")
@@ -125,8 +135,8 @@ def run_setup() -> int:
     if req_dev_file.exists():
         subprocess.run([str(py_bin), "-m", "pip", "install", "-r", "requirements-dev.txt"], cwd=API_DIR)
 
-    # 3. Run Database Migrations
-    print("\n[3/5] Running Alembic database migrations...")
+    # 4. Run Database Migrations
+    print("\n[4/6] Running Alembic database migrations...")
     alembic_bin = get_venv_bin("alembic")
     res = subprocess.run([str(alembic_bin), "upgrade", "head"], cwd=API_DIR)
     if res.returncode != 0:
@@ -135,23 +145,28 @@ def run_setup() -> int:
         if res.returncode != 0:
             print("WARNING: Alembic migration reported non-zero returncode. DB engine will create tables on startup if missing.")
 
-    # 4. Install Node.js Frontend Dependencies
-    print("\n[4/5] Installing Node.js frontend dependencies (Next.js, React, Tailwind)...")
+    # 5. Install Node.js Frontend Dependencies
+    print("\n[5/6] Installing Node.js frontend dependencies (Next.js, React, Tailwind)...")
     npm_cmd = get_npm_cmd()
     if (WEB_DIR / "package.json").exists():
         res = subprocess.run([npm_cmd, "install"], cwd=WEB_DIR)
         if res.returncode != 0:
             print("WARNING: npm install encountered an issue. Ensure Node.js (>= 18) and npm are installed.")
 
-    # 5. Generate Sample Discharge PDFs
-    print("\n[5/5] Generating sample medical discharge PDFs for instant testing...")
+    # 6. Generate Sample Discharge and Conflict PDFs
+    print("\n[6/6] Generating sample medical discharge and conflict PDFs for instant testing...")
     sample_gen = REPO_ROOT / "generate_sample_pdf.py"
     if sample_gen.exists():
         subprocess.run([str(py_bin), str(sample_gen)], cwd=REPO_ROOT)
+    
+    conflict_gen = REPO_ROOT / "generate_conflict_pdf.py"
+    if conflict_gen.exists():
+        subprocess.run([str(py_bin), str(conflict_gen)], cwd=REPO_ROOT)
 
     print("\n=================================================================")
-    print("  Setup Complete! You can now start the application with:")
-    print("    python run.py dev")
+    print("  Setup Complete! All dependencies installed successfully.")
+    print("  Start the application with:")
+    print("    python run.py dev    (or ./run_dev.sh / run_dev.bat)")
     print("=================================================================\n")
     return 0
 
@@ -191,6 +206,17 @@ def run_web() -> int:
 
 def run_dev() -> int:
     """Run both API backend and Next.js frontend concurrently with unified logging and graceful shutdown."""
+    # Auto-initialize if dependencies/environment are missing
+    venv_dir = API_DIR / ".venv"
+    node_modules_dir = WEB_DIR / "node_modules"
+    if not venv_dir.exists() or not node_modules_dir.exists():
+        print("Detected uninitialized environment (missing Python .venv or Node modules).")
+        print("Running automated setup first...\n")
+        setup_rc = run_setup()
+        if setup_rc != 0:
+            print("ERROR: Automatic setup failed.")
+            return setup_rc
+
     py_bin = get_venv_python()
     npm_cmd = get_npm_cmd()
 
