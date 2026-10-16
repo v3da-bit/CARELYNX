@@ -11,6 +11,35 @@
 ## Task Commit History
 
 ```text
+commit 5f9a2b8
+Author: Antigravity AI (Gemini) <antigravity-ai@carelynx.local>
+Date:   2026-10-17 01:33:00 +0530
+
+    feat(presentation): inject deep technical project detailing and AMD ROCm evaluation into slide deck PDF
+
+    - Context / Problem addressed:
+      User requested enhancing `CARELYNX_Slide_Presentation.pdf` with deep technical
+      project detailing specifically tailored for the AMD Developer Hackathon: Act III
+      (Generative AI with ROCm).
+    - Architectural decisions & changes made:
+      1. Updated `scripts/generate_pitch_deck.py` with 10 high-density 16:9 widescreen slides:
+         - Slide 1: Cover with AMD Hackathon Act III badge, team credentials (The Crawlers), and live URLs.
+         - Slide 2: Quantitative clinical discharge crisis ($26B readmission burden, 50%+ medication discrepancies).
+         - Slide 3: Core solution pillars (100% verbatim grounding, deterministic conflict detection, human-in-the-loop review, multilingual translation).
+         - Slide 4: End-to-end production architecture pipeline (Ingest/OCR -> AMD ROCm vLLM -> Safety Engine -> Next.js / FHIR R4).
+         - Slide 5: AMD ROCm 6.x & vLLM deep dive (FlashAttention-2/Triton kernels, PagedAttention continuous batching, guided JSON decoding with `outlines`, on-prem zero-PHI privacy, hardware telemetry via `benchmark_rocm.py`).
+         - Slide 6: Deterministic safety invariants, mathematical confidence calculation (`conf = min(page_quality, ocr_conf, quote_quality) * legibility_factor`), and 5-state lifecycle.
+         - Slide 7: Clinical Evaluation Suite detailing 4 benchmark scenarios (Scenarios A/B/C/D) and performance metrics (100% precision, 100% recall, 100% conflict detection, 0% hallucinations, 143 passed tests).
+         - Slide 8: Multilingual care navigation, 6 supported languages, Dosage Preservation Covenant, and Web Speech TTS audio.
+         - Slide 9: Dual-persona workflow (Patient Companion vs Clinical Reviewer Portal `/review`) and live Vercel/Railway cloud deployment.
+         - Slide 10: Conclusion, hospital ROI, open source repo, and live deployment links.
+      2. Recompiled `presentation_slides.html` and rendered high-res vector PDF `CARELYNX_Slide_Presentation.pdf` via headless Chrome.
+    - Verification & testing performed:
+      - Verified PDF via `pypdf`: exactly 10 pages, 4.1 MB, 1920x1080 16:9 aspect ratio.
+      - Tested Chrome headless compilation without errors.
+    - Alignment check:
+      Confirmed compliance with docs/PRD.md and docs/SAFETY.md.
+
 commit e627957
 Author: Codex <codex@carelynx.local>
 Date:   2026-10-17 01:28:19 +0530
