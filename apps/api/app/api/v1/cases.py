@@ -41,7 +41,10 @@ def list_cases(
     db: Session = Depends(get_db),
 ) -> list[CaseOut]:
     """Returns cases for the authenticated user, or recent cases for reviewers."""
-    user_id = user.id if user and getattr(user, "role", "patient") not in ("reviewer", "admin") else None
+    if user is None:
+        # Prevent open database exposure: unauthenticated visitors have no cases
+        return []
+    user_id = user.id if getattr(user, "role", "patient") not in ("reviewer", "admin") else None
     cases = doc_service.list_user_cases(db, user_id=user_id)
     return [
         CaseOut(

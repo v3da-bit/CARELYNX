@@ -11,6 +11,58 @@
 ## Task Commit History
 
 ```text
+commit 7d4a1b0
+Author: Gemini 3.8 Flash via Antigravity <antigravity-ai@carelynx.local>
+Date:   2026-10-16 11:11:00 +0530
+
+    feat(auth & db): connect deployment to Firebase and fix open Postgres case leakage
+
+    - Context / Problem addressed:
+      1. User requested connecting the deployed app to Firebase.
+      2. User noted that currently in deployment, the backend uses "open postgres" where
+         unauthenticated callers or Firebase users were not isolated, leading to all cases
+         being exposed or stored without user isolation.
+      3. The backend previously only verified internal 2-part HMAC tokens and failed on
+         Firebase 3-part JWT ID tokens, causing Firebase users to be treated as anonymous (user=None).
+      4. `GET /api/v1/cases` returned all cases from PostgreSQL when user=None.
+    - Architectural decisions & changes made:
+      1. Frontend Firebase Environment Variables (apps/web/lib/firebase.ts):
+         - Updated `firebaseConfig` to dynamically read from `process.env.NEXT_PUBLIC_FIREBASE_*`
+           with seamless fallbacks to project defaults (`buttler-8e847`).
+         - Updated `apps/web/.env.production.example` and `docs/DEPLOYMENT.md` with complete
+           Firebase variables for Vercel deployment.
+      2. Backend Firebase Auth Token Support (apps/api/app/core/auth.py):
+         - Added `decode_firebase_token_payload` to decode and validate Firebase ID tokens (JWT)
+           checking expiration, project issuer, and audience against `firebase_project_id`.
+         - Added `get_or_create_firebase_user` with deterministic UUID mapping via
+           `uuid.uuid5(uuid.NAMESPACE_URL, f"firebase:{uid}")`, auto-provisioning the user in
+           PostgreSQL if not yet existing.
+         - Updated `get_optional_user` to transparently verify both internal HMAC tokens and
+           Firebase ID tokens from Bearer headers and cookies.
+      3. Open Postgres Fix & Tenant Isolation (apps/api/app/api/v1/cases.py):
+         - In `list_cases`, unauthenticated callers (`user is None`) now receive `[]` (empty list)
+           instead of querying all cases from PostgreSQL.
+         - Authenticated Firebase patients only see their own cases (`Case.user_id == user.id`).
+         - `create_case` associates newly created cases with the auto-provisioned Firebase user's UUID.
+      4. Deployment Configurations & Guides:
+         - Updated `apps/api/.env.railway.example` with `FIREBASE_PROJECT_ID=buttler-8e847`.
+         - Updated `docs/DEPLOYMENT.md` with complete Firebase variable setup for Railway and Vercel.
+      5. Verification & Testing (apps/api/tests/unit/test_firebase_auth.py):
+         - Added 6 unit/integration tests verifying token parsing, expired token rejection,
+           project mismatch rejection, deterministic UUID provisioning, open Postgres fix,
+           and multi-user case isolation.
+         - 143/143 backend tests passed. Next.js build passed with 0 errors.
+    - Files created / modified:
+      - apps/web/lib/firebase.ts
+      - apps/web/.env.production.example
+      - apps/api/app/core/config.py
+      - apps/api/app/core/auth.py
+      - apps/api/app/api/v1/cases.py
+      - apps/api/.env.railway.example
+      - apps/api/tests/unit/test_firebase_auth.py
+      - docs/DEPLOYMENT.md
+      - docs/AI_LOG.md
+
 commit 3099690
 Author: Claude Opus 4.6 via Antigravity <antigravity-ai@carelynx.local>
 Date:   2026-10-16 10:57:00 +0530

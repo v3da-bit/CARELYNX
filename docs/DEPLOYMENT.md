@@ -89,6 +89,9 @@ MAX_UPLOAD_MB=10
 # Generate a strong key: python -c "import secrets; print(secrets.token_hex(32))"
 AUTH_SECRET_KEY=REPLACE_WITH_64_CHAR_HEX_SECRET
 
+# Firebase Integration (verifies Firebase Auth tokens and isolates user records in Postgres)
+FIREBASE_PROJECT_ID=buttler-8e847
+
 INFERENCE_PROVIDER=openai_compat
 INFERENCE_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 INFERENCE_MODEL=gemini-1.5-flash
@@ -167,6 +170,13 @@ Still on the configuration screen, expand **"Environment Variables"** and add:
 | Name | Value |
 |---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | `https://YOUR_SERVICE.railway.app/api/v1` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyBj_acq_j1GwqNYJQDVneNbbSLFUDtTW2A` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `buttler-8e847.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `buttler-8e847` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `buttler-8e847.firebasestorage.app` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `471913780818` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:471913780818:web:6db6aa7128eb4b10c1718b` |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | `G-W78MERWHDQ` |
 
 Replace `YOUR_SERVICE` with the Railway URL from Step 1.6.
 
@@ -230,6 +240,7 @@ If you prefer direct calls (simpler, keep CORS config): leave `NEXT_PUBLIC_API_B
 | `DATABASE_URL` | Yes | `postgresql+psycopg://user:pass@host:5432/db` |
 | `CORS_ORIGINS` | Yes | `https://your-app.vercel.app` |
 | `AUTH_SECRET_KEY` | Yes | 64-char hex string |
+| `FIREBASE_PROJECT_ID` | Yes | `buttler-8e847` |
 | `INFERENCE_PROVIDER` | Yes | `openai_compat` |
 | `INFERENCE_BASE_URL` | Yes | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | `INFERENCE_MODEL` | Yes | `gemini-1.5-flash` |
@@ -242,6 +253,13 @@ If you prefer direct calls (simpler, keep CORS config): leave `NEXT_PUBLIC_API_B
 | Variable | Required | Example Value |
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | Yes | `https://your-service.railway.app/api/v1` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Yes | `AIzaSyBj_acq_j1GwqNYJQDVneNbbSLFUDtTW2A` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Yes | `buttler-8e847.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Yes | `buttler-8e847` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Yes | `buttler-8e847.firebasestorage.app` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Yes | `471913780818` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Yes | `1:471913780818:web:6db6aa7128eb4b10c1718b` |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | Yes | `G-W78MERWHDQ` |
 
 ---
 

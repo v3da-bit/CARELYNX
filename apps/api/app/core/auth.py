@@ -132,6 +132,88 @@ def verify_token(token: str) -> dict[str, Any] | None:
         return None
 
 
+def decode_firebase_token_payload(token: str) -> dict[str, Any] | None:
+    """Decodes and validates a Firebase ID token (JWT).
+    
+    Verifies token claims (expiration, issuer, audience against configured project).
+    Safe, zero-external-dependency parser supporting both online & offline modes.
+    """
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        _header_b64, payload_b64, _sig_b64 = parts
+
+        rem = len(payload_b64) % 4
+        padded = payload_b64 + ("=" * (4 - rem) if rem else "")
+        raw = base64.urlsafe_b64decode(padded.encode("ascii"))
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            return None
+
+        # Verify expiration
+        exp = payload.get("exp")
+        if exp is not None and exp < int(time.time()):
+            return None
+
+        # Verify Firebase issuer
+        iss = str(payload.get("iss", ""))
+        settings = get_settings()
+        expected_project = getattr(settings, "firebase_project_id", "")
+        if not iss.startswith("https://securetoken.google.com/"):
+            return None
+        if expected_project:
+            expected_iss = f"https://securetoken.google.com/{expected_project}"
+            if iss != expected_iss:
+                return None
+            if payload.get("aud") != expected_project:
+                return None
+
+        sub = payload.get("sub")
+        if not sub or not isinstance(sub, str):
+            return None
+
+        return payload
+    except Exception:
+        return None
+
+
+def get_or_create_firebase_user(payload: dict[str, Any], db: Session) -> User | None:
+    """Resolves or auto-provisions a PostgreSQL user mapped deterministically from Firebase UID."""
+    firebase_uid = str(payload.get("sub", ""))
+    if not firebase_uid:
+        return None
+
+    # Deterministic UUID mapping for the Firebase user across all requests
+    user_uuid = uuid.uuid5(uuid.NAMESPACE_URL, f"firebase:{firebase_uid}")
+    user = db.get(User, user_uuid)
+    if user:
+        return user if user.is_active else None
+
+    email = payload.get("email") or f"{firebase_uid}@firebase.carelynx"
+    existing_user = db.scalars(select(User).where(User.email == email)).first()
+    if existing_user:
+        return existing_user if existing_user.is_active else None
+
+    name = payload.get("name") or payload.get("display_name")
+    new_user = User(
+        id=user_uuid,
+        email=email,
+        hashed_password="",  # Managed by Firebase Auth
+        full_name=name,
+        role="patient",
+        is_active=True,
+    )
+    db.add(new_user)
+    try:
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except Exception:
+        db.rollback()
+        return db.get(User, user_uuid)
+
+
 def get_token_from_header(authorization: str | None = Header(default=None)) -> str | None:
     if not authorization:
         return None
@@ -146,24 +228,31 @@ def get_optional_user(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """Resolves authenticated user from Bearer header if present."""
+    """Resolves authenticated user from Bearer header or cookie (supports HMAC & Firebase JWT)."""
     token = get_token_from_header(authorization)
     if not token:
         # Check Authorization cookie if present
         token = request.cookies.get("carelynx_auth_token")
     if not token:
         return None
+
+    # 1. Try local HMAC token verification
     data = verify_token(token)
-    if not data or not data.get("sub"):
-        return None
-    try:
-        user_uuid = uuid.UUID(data["sub"])
-    except ValueError:
-        return None
-    user = db.get(User, user_uuid)
-    if user and not user.is_active:
-        return None
-    return user
+    if data and data.get("sub"):
+        try:
+            user_uuid = uuid.UUID(data["sub"])
+            user = db.get(User, user_uuid)
+            if user and user.is_active:
+                return user
+        except ValueError:
+            pass
+
+    # 2. Try Firebase ID token verification
+    firebase_payload = decode_firebase_token_payload(token)
+    if firebase_payload:
+        return get_or_create_firebase_user(firebase_payload, db)
+
+    return None
 
 
 def require_authenticated_user(

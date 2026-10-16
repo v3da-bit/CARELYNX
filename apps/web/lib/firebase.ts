@@ -21,13 +21,13 @@ import {
 } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBj_acq_j1GwqNYJQDVneNbbSLFUDtTW2A",
-  authDomain: "buttler-8e847.firebaseapp.com",
-  projectId: "buttler-8e847",
-  storageBucket: "buttler-8e847.firebasestorage.app",
-  messagingSenderId: "471913780818",
-  appId: "1:471913780818:web:6db6aa7128eb4b10c1718b",
-  measurementId: "G-W78MERWHDQ"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBj_acq_j1GwqNYJQDVneNbbSLFUDtTW2A",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "buttler-8e847.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "buttler-8e847",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "buttler-8e847.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "471913780818",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:471913780818:web:6db6aa7128eb4b10c1718b",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-W78MERWHDQ"
 };
 
 // Initialize Firebase App safely (singleton)
