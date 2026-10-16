@@ -47,6 +47,7 @@ def probe_edge() -> EdgeCapability:
     providers: list[str] = []
     onnx_installed = False
     try:
+        # pyrefly: ignore [missing-import]
         import onnxruntime as ort
 
         onnx_installed = True
@@ -80,7 +81,9 @@ def probe_edge() -> EdgeCapability:
 
 
 async def run_cpu_fallback_extract() -> dict:
+    # pyrefly: ignore [missing-import]
     from app.ai.provider import StructuredRequest
+    # pyrefly: ignore [missing-import]
     from app.ai.rule_based import RuleBasedProvider
 
     sample = (
